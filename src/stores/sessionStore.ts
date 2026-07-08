@@ -110,13 +110,10 @@ interface SessionStore {
   currentSession: Session | null;
   loading: boolean;
   sending: boolean;
-  /** 实时流式内容（尚未保存到会话的 AI 回复文本） */
+  lastError: string | null;
   streamContent: string;
-  /** 实时思考过程 */
   streamReasoning: string;
-  /** 本轮工具调用（用于 UI 展示） */
   toolCalls: ToolCallDisplay[];
-  /** 当前会话预估上下文 Token */
   contextTokens: number;
   tokenStats: TokenStats;
 
@@ -138,6 +135,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   streamReasoning: "",
   toolCalls: [],
   contextTokens: 0,
+  lastError: null,
   tokenStats: { total_input: 0, total_output: 0, total_cost: 0 },
 
   loadSessions: async () => {
@@ -216,10 +214,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   /** 发送消息 → 启动 Agent Turn Loop（流式） */
   sendMessage: async (content: string) => {
-    const { currentId, currentSession } = get();
-    if (!currentId || !currentSession) return;
+    let { currentId, currentSession } = get();
 
-    // 1. 本地插入用户消息
+    // 自动恢复：如果 currentId 或 currentSession 为空，重载会话列表
+    if (!currentId || !currentSession) {
+      console.warn("sendMessage: currentId/session 为空，尝试重载", { currentId, currentSession });
+      await get().loadSessions();
+      // 如果重载后还没有，尝试用第一个会话
+      const state = get();
+      if (state.sessions.length > 0 && !currentId) {
+        await get().switchSession(state.sessions[0].id);
+        currentId = state.sessions[0].id;
+        currentSession = state.currentSession;
+      }
+      if (!currentId || !currentSession) {
+        set({ lastError: "请先创建一个对话" });
+        return;
+      }
+    }
+
+    // 本地插入用户消息
     const tempUserMsg: Message = {
       id: "user-" + Date.now(),
       role: "user",
@@ -229,6 +243,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     set({
       sending: true,
+      lastError: null,
       streamContent: "",
       streamReasoning: "",
       toolCalls: [],
@@ -238,25 +253,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       },
     });
 
-    // 2. 监听 Tauri 流式事件
     const unlisteners: UnlistenFn[] = [];
     let aiContent = "";
 
     try {
-      // token 事件
       const un1 = await listen<TokenPayload>("agent:token", (ev) => {
         aiContent += ev.payload.token;
         set({ streamContent: aiContent });
       });
       unlisteners.push(un1);
 
-      // reasoning 事件
       const un2 = await listen<ReasoningPayload>("agent:reasoning", (ev) => {
         set((s) => ({ streamReasoning: s.streamReasoning + ev.payload.reasoning }));
       });
       unlisteners.push(un2);
 
-      // tool_result 事件
       const un3 = await listen<ToolResultPayload>("agent:tool_result", (ev) => {
         const tc: ToolCallDisplay = {
           id: ev.payload.id,
@@ -269,16 +280,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       });
       unlisteners.push(un3);
 
-      // 3. 启动 Agent Turn（异步，Rust 端通过事件推流）
+      // 启动 Agent Turn
       const result = await invoke<ChatResult>("start_agent_turn", {
         sessionId: currentId,
         content,
       });
 
-      // 4. Turn 完成 → 重新加载最新会话
-      const updated = await invoke<Session | null>("get_session", {
-        id: currentId,
-      });
+      // Turn 完成 → 重新加载最新会话
+      const updated = await invoke<Session | null>("get_session", { id: currentId });
       if (updated) {
         const state = get();
         const newStats: TokenStats = {
@@ -288,7 +297,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             state.tokenStats.total_cost +
             calcCost("deepseek-v4-flash", result.input_tokens, result.output_tokens),
         };
-
         set({
           currentSession: updated,
           sending: false,
@@ -297,13 +305,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           tokenStats: newStats,
           contextTokens: estimateSessionTokens(updated.messages),
         });
-
         const sessions = await invoke<SessionSummary[]>("list_sessions");
         set({ sessions });
       }
     } catch (e) {
-      console.error("Agent Turn 失败:", e);
-      set({ sending: false, streamContent: "", streamReasoning: "" });
+      const errMsg = typeof e === "string" ? e : e instanceof Error ? e.message : "未知错误";
+      console.error("Agent Turn 失败:", errMsg);
+      set({ sending: false, lastError: errMsg, streamContent: "", streamReasoning: "" });
       const updated = await invoke<Session | null>("get_session", { id: currentId });
       if (updated) set({ currentSession: updated });
     } finally {

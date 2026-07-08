@@ -280,6 +280,14 @@ html, body, #root {
   color: #1e1e1e;
 }
 
+.message-error {
+  align-self: center;
+  background: rgba(224, 108, 117, 0.1);
+  border: 1px solid rgba(224, 108, 117, 0.3);
+  color: var(--danger);
+  max-width: 90%;
+}
+
 .message-assistant {
   align-self: flex-start;
   background: var(--bg-secondary);

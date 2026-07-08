@@ -11,6 +11,7 @@ export function ChatArea() {
     sending,
     streamContent,
     streamReasoning,
+    lastError,
     sendMessage,
   } = useSessionStore();
   const [input, setInput] = useState("");
@@ -85,7 +86,15 @@ export function ChatArea() {
               </div>
             ))}
 
-            {/* 流式回复（尚未保存到会话的实时内容） */}
+            {/* 错误提示 */}
+            {lastError && (
+              <div className="message message-error">
+                <div className="message-role">错误</div>
+                <div className="message-content">{lastError}</div>
+              </div>
+            )}
+
+            {/* 流式回复 */}
             {sending && (
               <div className="message message-assistant">
                 <div className="message-role">AI</div>
