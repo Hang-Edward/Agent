@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
+import { MarkdownBlock } from "./MarkdownBlock";
 
 /** 对话主面板 — 中栏 */
 export function ChatArea() {
@@ -61,7 +62,13 @@ export function ChatArea() {
               <div className="message-role">
                 {msg.role === "user" ? "你" : "AI"}
               </div>
-              <div className="message-content">{msg.content}</div>
+              <div className="message-content">
+                {msg.role === "assistant" ? (
+                  <MarkdownBlock content={msg.content} />
+                ) : (
+                  msg.content
+                )}
+              </div>
             </div>
           ))
         )}
