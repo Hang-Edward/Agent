@@ -4,6 +4,7 @@ mod mcp;
 mod sandbox;
 mod session;
 mod settings;
+mod skills;
 mod terminal;
 mod tools;
 
@@ -51,6 +52,30 @@ fn delete_session(app: tauri::AppHandle, id: String) -> Result<(), String> {
 #[tauri::command]
 fn rename_session(app: tauri::AppHandle, id: String, name: String) -> Result<(), String> {
     session::rename_session(&app, &id, &name)
+}
+
+/// 列出所有 Skills
+#[tauri::command]
+fn list_skills(app: tauri::AppHandle) -> Vec<skills::SkillSummary> {
+    skills::list_skills(&app)
+}
+
+/// 创建 Skill
+#[tauri::command]
+fn create_skill(app: tauri::AppHandle, name: String, description: String, system_prompt: String) -> skills::Skill {
+    skills::create_skill(&app, &name, &description, &system_prompt)
+}
+
+/// 删除 Skill
+#[tauri::command]
+fn delete_skill(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    skills::delete_skill(&app, &id)
+}
+
+/// 获取单个 Skill
+#[tauri::command]
+fn get_skill(app: tauri::AppHandle, id: String) -> Option<skills::Skill> {
+    skills::get_skill(&app, &id)
 }
 
 /// 列出目录内容（用于文件树）
@@ -155,6 +180,10 @@ pub fn run() {
             terminal_start,
             terminal_write,
             terminal_stop,
+            list_skills,
+            create_skill,
+            delete_skill,
+            get_skill,
         ])
         .manage(TerminalSession::new())
         .setup(|app| {

@@ -4,6 +4,7 @@ pub mod edit;
 pub mod glob;
 pub mod grep;
 pub mod read;
+pub mod web_search;
 pub mod write;
 
 use serde::Serialize;
@@ -84,6 +85,8 @@ impl ToolRegistry {
         reg.register(Box::new(glob::GlobTool));
         reg.register(Box::new(grep::GrepTool));
         reg.register(Box::new(bash::BashTool));
+        reg.register(Box::new(web_search::WebSearchTool));
+        reg.register(Box::new(web_search::WebFetchTool));
         reg
     }
 }
