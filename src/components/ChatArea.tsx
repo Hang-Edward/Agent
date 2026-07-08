@@ -1,10 +1,27 @@
+import { useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 
 /** 对话主面板 — 中栏 */
 export function ChatArea() {
-  const { currentSession, currentId, loading } = useSessionStore();
+  const { currentSession, currentId, loading, sending, sendMessage } =
+    useSessionStore();
+  const [input, setInput] = useState("");
 
-  // 没有选中会话 → 空状态
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || !currentId || sending) return;
+    setInput("");
+    await sendMessage(text);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // 没有选中会话
   if (!currentId) {
     return (
       <main className="chat-area">
@@ -23,15 +40,7 @@ export function ChatArea() {
     return (
       <main className="chat-area">
         <div className="messages">
-          <div className="welcome">
-            <p>加载中...</p>
-          </div>
-        </div>
-        <div className="input-area">
-          <div className="input-row">
-            <input className="chat-input" type="text" placeholder="加载中..." disabled />
-            <button className="btn-send" disabled>发送</button>
-          </div>
+          <div className="welcome"><p>加载中...</p></div>
         </div>
       </main>
     );
@@ -56,6 +65,13 @@ export function ChatArea() {
             </div>
           ))
         )}
+        {/* 发送中指示器 */}
+        {sending && (
+          <div className="message message-assistant">
+            <div className="message-role">AI</div>
+            <div className="message-content thinking">思考中...</div>
+          </div>
+        )}
       </div>
 
       {/* 输入区 */}
@@ -64,9 +80,19 @@ export function ChatArea() {
           <input
             className="chat-input"
             type="text"
-            placeholder="输入指令给 AI..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={sending ? "等待 AI 回复..." : "输入指令给 AI..."}
+            disabled={sending}
           />
-          <button className="btn-send">发送</button>
+          <button
+            className="btn-send"
+            onClick={handleSend}
+            disabled={sending || !input.trim()}
+          >
+            发送
+          </button>
         </div>
       </div>
     </main>

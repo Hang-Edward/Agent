@@ -1,4 +1,5 @@
 import { useUiStore } from "../stores/uiStore";
+import { useSessionStore } from "../stores/sessionStore";
 
 /* ───────── 各仪表盘小组件 ───────── */
 
@@ -50,28 +51,35 @@ function TaskProgress() {
 
 /** Token 消耗面板 */
 function TokenUsage() {
+  const stats = useSessionStore((s) => s.tokenStats);
+  const total = stats.total_input + stats.total_output;
+
   return (
     <div className="widget">
       <div className="widget-title">🔢 Token 消耗</div>
       <div className="widget-body">
         <div className="metric-row">
-          <span className="metric-label">本轮</span>
-          <span className="metric-value">—</span>
+          <span className="metric-label">输入</span>
+          <span className="metric-value">{stats.total_input.toLocaleString()}</span>
+        </div>
+        <div className="metric-row">
+          <span className="metric-label">输出</span>
+          <span className="metric-value">{stats.total_output.toLocaleString()}</span>
         </div>
         <div className="metric-row">
           <span className="metric-label">总计</span>
-          <span className="metric-value">—</span>
+          <span className="metric-value">{total.toLocaleString()}</span>
         </div>
         <div className="metric-row">
           <span className="metric-label">预估费用</span>
-          <span className="metric-value">$ —</span>
+          <span className="metric-value">${stats.total_cost.toFixed(4)}</span>
         </div>
       </div>
     </div>
   );
 }
 
-/** 缓存命中率面板 */
+/** 缓存命中率面板（DeepSeek API 暂未暴露缓存数据，显示占位） */
 function CacheHitRate() {
   return (
     <div className="widget">
@@ -82,10 +90,10 @@ function CacheHitRate() {
           <span className="metric-value metric-highlight">—</span>
         </div>
         <div className="metric-row">
-          <span className="metric-label">节省 (est.)</span>
+          <span className="metric-label">本节省 (est.)</span>
           <span className="metric-value">$ —</span>
         </div>
-        <div className="hint">对话开始后自动统计</div>
+        <div className="hint">DeepSeek API 暂未返回缓存统计</div>
       </div>
     </div>
   );
