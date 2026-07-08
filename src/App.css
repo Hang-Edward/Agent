@@ -1116,6 +1116,120 @@ html, body, #root {
   gap: 12px;
 }
 
+/* ===== 左侧栏面板 Tab ===== */
+.panel-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.panel-tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.panel-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.panel-tab-active {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* 面板分区 */
+.panel-section {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.panel-section-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ===== 文件树 ===== */
+.file-tree {
+  padding: 0 4px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.file-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.file-icon {
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-children {
+  /* 缩进由 inline style 处理 */
+}
+
+/* ===== Monaco Editor ===== */
+.monaco-wrapper {
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* ===== 编辑器 Tab（右侧面板） ===== */
+.editor-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.editor-tab-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.editor-tab-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 /* KaTeX 公式 */
 .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 

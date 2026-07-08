@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUiStore } from "../stores/uiStore";
 import { useSessionStore } from "../stores/sessionStore";
+import { FileTree } from "./FileTree";
 
 /** 会话列表 — 左侧栏 */
 export function SessionList() {
@@ -14,6 +15,7 @@ export function SessionList() {
     deleteSession,
     renameSession,
   } = useSessionStore();
+  const [leftTab, setLeftTab] = useState<"sessions" | "files">("sessions");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -48,7 +50,20 @@ export function SessionList() {
       {open ? (
         <>
           <div className="panel-header">
-            <span className="panel-title">会话</span>
+            <div className="panel-tabs">
+              <button
+                className={`panel-tab ${leftTab === "sessions" ? "panel-tab-active" : ""}`}
+                onClick={() => setLeftTab("sessions")}
+              >
+                💬
+              </button>
+              <button
+                className={`panel-tab ${leftTab === "files" ? "panel-tab-active" : ""}`}
+                onClick={() => setLeftTab("files")}
+              >
+                📁
+              </button>
+            </div>
             <button
               className="panel-collapse-btn"
               onClick={toggle}
@@ -58,6 +73,8 @@ export function SessionList() {
             </button>
           </div>
 
+          {leftTab === "sessions" ? (
+            <>
           <button className="btn-new-chat" onClick={handleNew}>
             ＋ 新对话
           </button>
@@ -111,6 +128,13 @@ export function SessionList() {
           <div className="panel-footer-hint">
             {sessions.length} 个会话
           </div>
+            </>
+          ) : (
+            <div className="panel-section">
+              <div className="panel-section-header">📁 文件</div>
+              <FileTree />
+            </div>
+          )}
         </>
       ) : (
         <button

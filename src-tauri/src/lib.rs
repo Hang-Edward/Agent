@@ -50,6 +50,59 @@ fn rename_session(app: tauri::AppHandle, id: String, name: String) -> Result<(),
     session::rename_session(&app, &id, &name)
 }
 
+/// 列出目录内容（用于文件树）
+#[tauri::command]
+fn list_directory(app: tauri::AppHandle, path: String) -> Result<Vec<serde_json::Value>, String> {
+    let settings = settings::load_settings(&app);
+    let root = if !settings.working_dir.is_empty() {
+        std::path::PathBuf::from(&settings.working_dir)
+    } else {
+        std::env::current_dir().map_err(|e| format!("获取当前目录失败: {}", e))?
+    };
+
+    let target_dir = if path.is_empty() || path == "." {
+        root.clone()
+    } else {
+        let p = std::path::Path::new(&path);
+        if p.is_absolute() { p.to_path_buf() } else { root.join(p) }
+    };
+
+    let mut entries = Vec::new();
+    if let Ok(dir) = std::fs::read_dir(&target_dir) {
+        for entry in dir.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // 隐藏 . 开头的文件夹和 node_modules/target
+            if name.starts_with('.') || name == "node_modules" || name == "target" {
+                continue;
+            }
+            let file_type = entry.file_type().ok();
+            let is_dir = file_type.map(|t| t.is_dir()).unwrap_or(false);
+            entries.push(serde_json::json!({
+                "name": name,
+                "path": entry.path().to_string_lossy().to_string(),
+                "is_dir": is_dir,
+            }));
+        }
+    }
+
+    // 文件夹排前面，按名称排序
+    entries.sort_by(|a, b| {
+        let a_dir = a["is_dir"].as_bool().unwrap_or(false);
+        let b_dir = b["is_dir"].as_bool().unwrap_or(false);
+        if a_dir != b_dir { return b_dir.cmp(&a_dir); }
+        a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or(""))
+    });
+
+    Ok(entries)
+}
+
+/// 读取文件内容（供编辑器使用）
+#[tauri::command]
+fn read_file_content(path: String) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    std::fs::read_to_string(p).map_err(|e| format!("读取文件失败: {}", e))
+}
+
 /// 启动 Agent Turn（流式，通过 Tauri Event 推送）
 #[tauri::command]
 async fn start_agent_turn(
@@ -75,6 +128,8 @@ pub fn run() {
             delete_session,
             rename_session,
             start_agent_turn,
+            list_directory,
+            read_file_content,
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("无法获取应用数据目录");

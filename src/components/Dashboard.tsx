@@ -1,18 +1,17 @@
 import { useUiStore } from "../stores/uiStore";
 import { useSessionStore } from "../stores/sessionStore";
+import { useFileStore } from "../stores/fileStore";
+import { MonacoEditor } from "./MonacoEditor";
 
 /* ───────── 各仪表盘小组件 ───────── */
 
-/** 任务步骤 */
 interface TaskStep {
   id: string;
   label: string;
   status: "pending" | "running" | "done" | "failed";
 }
 
-/** 任务进度面板 — 多步骤清单模式 */
 function TaskProgress() {
-  // 示例数据，后续由 Agent 循环更新
   const steps: TaskStep[] = [
     { id: "1", label: "分析需求", status: "done" },
     { id: "2", label: "读取相关文件", status: "done" },
@@ -27,10 +26,7 @@ function TaskProgress() {
       <div className="widget-body">
         <div className="step-list">
           {steps.map((step) => (
-            <div
-              key={step.id}
-              className={`step-item step-${step.status}`}
-            >
+            <div key={step.id} className={`step-item step-${step.status}`}>
               <span className="step-icon">
                 {step.status === "done" && "✓"}
                 {step.status === "running" && "◌"}
@@ -49,7 +45,6 @@ function TaskProgress() {
   );
 }
 
-/** Token 消耗面板 */
 function TokenUsage() {
   const stats = useSessionStore((s) => s.tokenStats);
   const total = stats.total_input + stats.total_output;
@@ -79,18 +74,16 @@ function TokenUsage() {
   );
 }
 
-/** 上下文使用量面板 */
 function ContextUsage() {
   const ctxTokens = useSessionStore((s) => s.contextTokens);
   const pct = Math.min(100, (ctxTokens / 1_000_000) * 100);
-  const barWidth = `${pct}%`;
 
   return (
     <div className="widget">
       <div className="widget-title">📦 上下文 (1M)</div>
       <div className="widget-body">
         <div className="progress-bar-bg">
-          <div className="progress-bar-fill" style={{ width: barWidth }} />
+          <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
         </div>
         <div className="metric-row">
           <span className="metric-label">已用</span>
@@ -105,7 +98,6 @@ function ContextUsage() {
   );
 }
 
-/** 缓存命中率面板（DeepSeek API 暂未暴露缓存数据，显示占位） */
 function CacheHitRate() {
   return (
     <div className="widget">
@@ -125,7 +117,6 @@ function CacheHitRate() {
   );
 }
 
-/** Git 状态面板 */
 function GitStatus() {
   return (
     <div className="widget">
@@ -145,15 +136,14 @@ function GitStatus() {
   );
 }
 
-/** Diff 概览面板 */
 function DiffOverview() {
   return (
     <div className="widget">
       <div className="widget-title">📝 代码变更</div>
       <div className="widget-body">
         <div className="diff-bar">
-          <div className="diff-added" style={{ flex: 0 }} title="新增行" />
-          <div className="diff-removed" style={{ flex: 0 }} title="删除行" />
+          <div className="diff-added" style={{ flex: 0 }} />
+          <div className="diff-removed" style={{ flex: 0 }} />
         </div>
         <div className="metric-row">
           <span className="metric-label metric-added">+ 新增</span>
@@ -174,26 +164,65 @@ function DiffOverview() {
 export function Dashboard() {
   const open = useUiStore((s) => s.rightPanelOpen);
   const toggle = useUiStore((s) => s.toggleRightPanel);
+  const { rightTab, setRightTab, openFile, closeFile } = useFileStore();
 
   return (
     <aside className={`panel panel-right ${open ? "panel-open" : "panel-closed"}`}>
       {open ? (
         <>
           <div className="panel-header">
-            <span className="panel-title">仪表盘</span>
+            <div className="panel-tabs">
+              <button
+                className={`panel-tab ${rightTab === "dashboard" ? "panel-tab-active" : ""}`}
+                onClick={() => setRightTab("dashboard")}
+              >
+                📊
+              </button>
+              <button
+                className={`panel-tab ${rightTab === "editor" ? "panel-tab-active" : ""}`}
+                onClick={() => setRightTab("editor")}
+              >
+                ✏️
+              </button>
+            </div>
             <button className="panel-collapse-btn" onClick={toggle} title="折叠面板">
               ▶
             </button>
           </div>
 
-          <div className="dashboard-scroll">
-            <TaskProgress />
-            <TokenUsage />
-            <ContextUsage />
-            <CacheHitRate />
-            <GitStatus />
-            <DiffOverview />
-          </div>
+          {rightTab === "dashboard" ? (
+            <div className="dashboard-scroll">
+              <TaskProgress />
+              <TokenUsage />
+              <ContextUsage />
+              <CacheHitRate />
+              <GitStatus />
+              <DiffOverview />
+            </div>
+          ) : (
+            <div className="editor-container">
+              {openFile ? (
+                <>
+                  <div className="editor-tab-header">
+                    <span>{openFile.name}</span>
+                    <button className="editor-tab-close" onClick={closeFile}>
+                      ✕
+                    </button>
+                  </div>
+                  <MonacoEditor
+                    path={openFile.path}
+                    content={openFile.content}
+                  />
+                </>
+              ) : (
+                <div className="welcome" style={{ padding: 20 }}>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    从文件树中选择一个文件预览
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </>
       ) : (
         <button className="panel-expand-btn" onClick={toggle} title="展开面板">
