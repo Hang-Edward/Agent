@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { create } from "zustand";
 
-/* ───── 类型定义（与 Rust 端对应） ───── */
+/* ───── 类型定义 ───── */
 
 export interface Message {
   id: string;
@@ -26,18 +27,42 @@ export interface SessionSummary {
   message_count: number;
 }
 
-/** DeepSeek API 返回结果 */
 export interface ChatResult {
   content: string;
   input_tokens: number;
   output_tokens: number;
 }
 
-/** 累计 Token 统计 */
 export interface TokenStats {
   total_input: number;
   total_output: number;
   total_cost: number;
+}
+
+/* ───── 流式事件载荷（与 Rust 端对应） ───── */
+
+interface TokenPayload {
+  token: string;
+}
+interface ReasoningPayload {
+  reasoning: string;
+}
+interface DonePayload {
+  content: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/* ───── 价格计算 ───── */
+
+const PRICES: Record<string, { input: number; output: number }> = {
+  "deepseek-v4-flash": { input: 0.15, output: 0.6 },
+  "deepseek-v4-pro": { input: 2.0, output: 8.0 },
+};
+
+function calcCost(model: string, input: number, output: number): number {
+  const p = PRICES[model] ?? PRICES["deepseek-v4-flash"];
+  return (input / 1_000_000) * p.input + (output / 1_000_000) * p.output;
 }
 
 /* ───── Store ───── */
@@ -48,6 +73,10 @@ interface SessionStore {
   currentSession: Session | null;
   loading: boolean;
   sending: boolean;
+  /** 实时流式内容（尚未保存到会话的 AI 回复文本） */
+  streamContent: string;
+  /** 实时思考过程 */
+  streamReasoning: string;
   tokenStats: TokenStats;
 
   loadSessions: () => Promise<void>;
@@ -58,24 +87,14 @@ interface SessionStore {
   sendMessage: (content: string) => Promise<void>;
 }
 
-/* DeepSeek V4 价格（每百万 token 的 USD 价格） */
-const PRICES: Record<string, { input: number; output: number }> = {
-  "deepseek-v4-flash": { input: 0.15, output: 0.6 },
-  "deepseek-v4-pro": { input: 2.0, output: 8.0 },
-};
-
-/** 计算费用 */
-function calcCost(model: string, input: number, output: number): number {
-  const p = PRICES[model] ?? PRICES["deepseek-v4-flash"];
-  return (input / 1_000_000) * p.input + (output / 1_000_000) * p.output;
-}
-
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentId: null,
   currentSession: null,
   loading: false,
   sending: false,
+  streamContent: "",
+  streamReasoning: "",
   tokenStats: { total_input: 0, total_output: 0, total_cost: 0 },
 
   loadSessions: async () => {
@@ -101,7 +120,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   switchSession: async (id: string) => {
     if (get().currentId === id) return;
-    set({ currentId: id, currentSession: null, loading: true });
+    set({
+      currentId: id,
+      currentSession: null,
+      loading: true,
+      streamContent: "",
+      streamReasoning: "",
+    });
     try {
       const session = await invoke<Session | null>("get_session", { id });
       set({ currentSession: session, loading: false });
@@ -141,14 +166,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  /** 发送消息到 DeepSeek API */
+  /** 发送消息 → 启动 Agent Turn Loop（流式） */
   sendMessage: async (content: string) => {
     const { currentId, currentSession } = get();
     if (!currentId || !currentSession) return;
 
-    // 本地先插入用户消息，让 UI 即时响应
-    const tempMsg: Message = {
-      id: "temp-" + Date.now(),
+    // 1. 本地插入用户消息
+    const tempUserMsg: Message = {
+      id: "user-" + Date.now(),
       role: "user",
       content,
       created_at: new Date().toLocaleString("zh-CN"),
@@ -156,22 +181,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     set({
       sending: true,
+      streamContent: "",
+      streamReasoning: "",
       currentSession: {
         ...currentSession,
-        messages: [...currentSession.messages, tempMsg],
+        messages: [...currentSession.messages, tempUserMsg],
       },
     });
 
+    // 2. 监听 Tauri 流式事件
+    const unlisteners: UnlistenFn[] = [];
+    let aiContent = "";
+
     try {
-      const result = await invoke<ChatResult>("send_message", {
+      // token 事件
+      const un1 = await listen<TokenPayload>("agent:token", (ev) => {
+        aiContent += ev.payload.token;
+        set({ streamContent: aiContent });
+      });
+      unlisteners.push(un1);
+
+      // reasoning 事件
+      const un2 = await listen<ReasoningPayload>("agent:reasoning", (ev) => {
+        set((s) => ({ streamReasoning: s.streamReasoning + ev.payload.reasoning }));
+      });
+      unlisteners.push(un2);
+
+      // 3. 启动 Agent Turn（异步，Rust 端通过事件推流）
+      const result = await invoke<ChatResult>("start_agent_turn", {
         sessionId: currentId,
         content,
       });
 
-      // 重新从后端加载完整会话（获得含 AI 回复的最新状态）
-      const updated = await invoke<Session | null>("get_session", { id: currentId });
+      // 4. Turn 完成 → 重新加载最新会话
+      const updated = await invoke<Session | null>("get_session", {
+        id: currentId,
+      });
       if (updated) {
-        // 更新累计统计
         const state = get();
         const newStats: TokenStats = {
           total_input: state.tokenStats.total_input + result.input_tokens,
@@ -184,19 +230,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({
           currentSession: updated,
           sending: false,
+          streamContent: "",
+          streamReasoning: "",
           tokenStats: newStats,
         });
 
-        // 更新会话列表（名称可能已变）
         const sessions = await invoke<SessionSummary[]>("list_sessions");
         set({ sessions });
       }
     } catch (e) {
-      console.error("发送消息失败:", e);
-      // 即使失败也重新加载以恢复状态
+      console.error("Agent Turn 失败:", e);
+      set({ sending: false, streamContent: "", streamReasoning: "" });
       const updated = await invoke<Session | null>("get_session", { id: currentId });
       if (updated) set({ currentSession: updated });
-      set({ sending: false });
+    } finally {
+      unlisteners.forEach((fn) => fn());
     }
   },
 }));

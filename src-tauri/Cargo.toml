@@ -23,7 +23,8 @@ tokio = { version = "1", features = ["full"] }
 keyring = "3"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures-util = "0.3"
 
 [features]
 default = ["custom-protocol"]
