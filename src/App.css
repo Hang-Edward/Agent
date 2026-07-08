@@ -1143,6 +1143,43 @@ html, body, #root {
   background: var(--bg-hover);
 }
 
+/* 项目卡片 */
+.project-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 0 8px 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.project-card:hover {
+  border-color: var(--accent);
+}
+
+.project-icon { font-size: 20px; }
+
+.project-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.project-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.project-path {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* 面板分区 */
 .panel-section {
   flex: 1;

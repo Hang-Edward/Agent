@@ -6,40 +6,13 @@ import { TerminalPanel } from "./TerminalPanel";
 
 /* ───────── 各仪表盘小组件 ───────── */
 
-interface TaskStep {
-  id: string;
-  label: string;
-  status: "pending" | "running" | "done" | "failed";
-}
-
 function TaskProgress() {
-  const steps: TaskStep[] = [
-    { id: "1", label: "分析需求", status: "done" },
-    { id: "2", label: "读取相关文件", status: "done" },
-    { id: "3", label: "生成修改方案", status: "running" },
-    { id: "4", label: "执行代码修改", status: "pending" },
-    { id: "5", label: "验证修改结果", status: "pending" },
-  ];
-
   return (
     <div className="widget">
       <div className="widget-title">📋 任务步骤</div>
       <div className="widget-body">
-        <div className="step-list">
-          {steps.map((step) => (
-            <div key={step.id} className={`step-item step-${step.status}`}>
-              <span className="step-icon">
-                {step.status === "done" && "✓"}
-                {step.status === "running" && "◌"}
-                {step.status === "pending" && "○"}
-                {step.status === "failed" && "✕"}
-              </span>
-              <span className={`step-label ${step.status === "done" ? "step-done" : ""}`}>
-                {step.label}
-              </span>
-              {step.status === "running" && <span className="step-spinner" />}
-            </div>
-          ))}
+        <div className="hint" style={{ padding: "8px 0", textAlign: "center" }}>
+          暂无活跃任务
         </div>
       </div>
     </div>
@@ -75,6 +48,47 @@ function TokenUsage() {
   );
 }
 
+/** SVG 环形进度组件 */
+function RingProgress({ pct, size = 80 }: { pct: number; size?: number }) {
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  const center = size / 2;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={center} cy={center} r={radius}
+        fill="none" stroke="var(--border-light)" strokeWidth={stroke} />
+      <circle cx={center} cy={center} r={radius}
+        fill="none" stroke="url(#ctxGradient)" strokeWidth={stroke}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${center} ${center})`}
+        style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+      <defs>
+        <linearGradient id="ctxGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="var(--accent)" />
+          <stop offset="100%" stopColor="var(--purple)" />
+        </linearGradient>
+      </defs>
+      <text x={center} y={center - 4}
+        textAnchor="middle" dominantBaseline="middle"
+        fill="var(--text-primary)" fontSize="16" fontWeight="bold"
+        fontFamily="'Cascadia Code', monospace">
+        {pct.toFixed(1)}%
+      </text>
+      <text x={center} y={center + 14}
+        textAnchor="middle" dominantBaseline="middle"
+        fill="var(--text-muted)" fontSize="10">
+        used
+      </text>
+    </svg>
+  );
+}
+
+/** 上下文使用量面板 — 环形展示 */
 function ContextUsage() {
   const ctxTokens = useSessionStore((s) => s.contextTokens);
   const pct = Math.min(100, (ctxTokens / 1_000_000) * 100);
@@ -82,15 +96,13 @@ function ContextUsage() {
   return (
     <div className="widget">
       <div className="widget-title">📦 上下文 (1M)</div>
-      <div className="widget-body">
-        <div className="progress-bar-bg">
-          <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="metric-row">
+      <div className="widget-body" style={{ alignItems: "center" }}>
+        <RingProgress pct={pct} />
+        <div className="metric-row" style={{ width: "100%" }}>
           <span className="metric-label">已用</span>
           <span className="metric-value">{ctxTokens.toLocaleString()}</span>
         </div>
-        <div className="metric-row">
+        <div className="metric-row" style={{ width: "100%" }}>
           <span className="metric-label">剩余</span>
           <span className="metric-value">{(1_000_000 - ctxTokens).toLocaleString()}</span>
         </div>

@@ -94,6 +94,27 @@ fn add_system_message(app: tauri::AppHandle, session_id: String, content: String
     session::save_session(&app, &sess)
 }
 
+/// 在资源管理器中打开路径
+#[tauri::command]
+fn open_in_explorer(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        // 如果路径不存在，打开其父目录
+        if let Some(parent) = p.parent() {
+            std::process::Command::new("explorer")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("打开失败: {}", e))?;
+        }
+        return Ok(());
+    }
+    std::process::Command::new("explorer")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("打开失败: {}", e))?;
+    Ok(())
+}
+
 /// 列出目录内容（用于文件树）
 #[tauri::command]
 fn list_directory(app: tauri::AppHandle, path: String) -> Result<Vec<serde_json::Value>, String> {
@@ -201,6 +222,7 @@ pub fn run() {
             delete_skill,
             get_skill,
             add_system_message,
+            open_in_explorer,
         ])
         .manage(TerminalSession::new())
         .setup(|app| {
