@@ -512,35 +512,117 @@ D:\VScode Projects\Agent/
 
 ## 九、Phase 2：Agent 核心（进行中）
 
-### 9.1 Turn Loop 引擎
+### 9.1 Turn Loop 引擎（已完成）
 
-**目标**：实现 Agent 自主循环
+#### 9.1.1 架构
 
 ```
-loop {
-    // 1. 构造请求（System Prompt + 历史消息 + 工具结果）
-    // 2. 流式请求 DeepSeek API（stream=true）
-    // 3. 解析 SSE 事件流
-    match event {
-        Token(text)          → 推送到前端渲染
-        Reasoning(text)      → 显示思考过程
-        ToolCall(name, args) → 执行工具 → 结果追加到上下文 → 继续循环
-        Done                 → 返回最终结果
-    }
+Frontend                    Rust Backend                    DeepSeek API
+   │                            │                              │
+   │── invoke("start_agent_turn")                             │
+   │                            │── POST /chat/completions ────│
+   │                            │   (stream:true)              │
+   │                            │◀──── SSE stream ────────────│
+   │◀── Tauri Event: token ─────│                              │
+   │◀── Tauri Event: reasoning ─│                              │
+   │◀── Tauri Event: done ──────│                              │
+   │── invoke returns ──────────│                              │
+```
+
+#### 9.1.2 文件结构
+
+```
+src-tauri/src/agent/
+├── mod.rs        # 模块导出（不含 Tauri 命令，放在 lib.rs）
+├── types.rs      # Tauri Event 载荷类型 + 事件名常量
+├── context.rs    # System Prompt 构建 + 消息列表组装
+└── loop.rs       # Turn Loop 引擎（run_turn）
+```
+
+#### 9.1.3 Tauri Event 协议
+
+| 事件名 | 载荷 | 触发时机 |
+|--------|------|---------|
+| `agent:token` | `{ token: String }` | 每收到一个 token 增量 |
+| `agent:reasoning` | `{ reasoning: String }` | 收到 reasoning_content（思考过程） |
+| `agent:done` | `{ content, input_tokens, output_tokens }` | 流结束 |
+
+#### 9.1.4 关键代码
+
+**deepseek.rs 流式 SSE 解析**：
+```rust
+// reqwest 流式读取 → 按行分割 SSE → JSON 解析
+// 每一行 "data: {...}" 中的 delta.content → on_token()
+// delta.reasoning_content → on_reasoning()
+// 最后一条 [DONE] 或带 usage 的 chunk → on_done()
+```
+
+**agent/context.rs System Prompt**：
+```rust
+pub fn build_system_prompt() -> String {
+    format!(r#"你是 Agent PC，一个桌面 AI 编码助手。
+- 使用工具完成文件读写、代码搜索等操作
+- 中文回复，Markdown 格式
+- 可用 LaTeX $$...$$ 和 Obsidian Callout >[!note]
+当前时间：{now}"#)
 }
 ```
 
-**关键设计**：
-- 系统 Prompt 包含角色定义 + 工具定义（JSON Schema）
-- 工具结果作为新消息加入上下文，触发下一轮
-- 上下文窗口管理：滑动窗口 + 摘要压缩
+**agent/loop.rs run_turn 流程**：
+```
+1. load_settings()          → 获取 API Key + Model
+2. get_session()            → 加载会话历史
+3. 保存用户消息             → push Message::User
+4. build_messages()         → system + history + user_input
+5. chat_completion_stream() → 流式调用 API
+   ├── on_token → emit("agent:token")
+   ├── on_reasoning → emit("agent:reasoning")
+   └── on_done → (token 统计)
+6. 保存 AI 回复             → push Message::Assistant
+7. save_session()           → 持久化到 JSON
+8. rename_session()         → 默认名称更新为消息摘要
+9. emit("agent:done")       → 通知前端完成
+```
 
-### 9.2 流式 SSE 接入
+#### 9.1.5 前端流式渲染
 
-**Rust 端**：使用 `reqwest` 的流式 API 逐 chunk 读取 SSE
-**前端**：通过 Tauri Event 系统实时接收 token
+**sessionStore.ts**：
+```typescript
+sendMessage(content) {
+  1. 本地插入用户消息（即时显示）
+  2. listen("agent:token")     → 追加到 streamContent
+  3. listen("agent:reasoning") → 追加到 streamReasoning
+  4. invoke("start_agent_turn") → 启动后台 Turn
+  5. 完成后 → 重新加载会话 + 更新 Token 统计
+}
+```
 
-### 9.3 工具系统
+**ChatArea.tsx 流式气泡**：
+```
+AI 消息气泡:
+  ├── <details> 思考过程 (collapsible)
+  │   └── <pre> streamReasoning
+  └── MarkdownBlock(streamContent)
+      或 "思考中..." (闪烁动画)
+```
+
+#### 9.1.6 提交记录
+
+```
+commit: feat: implement Turn Loop engine with streaming SSE
+- Rust agent module: types, context, loop
+- deepseek streaming SSE parsing
+- Tauri events for real-time token push
+- Frontend event listeners + streaming render
+- Collapsible reasoning block
+```
+
+### 9.2 思考过程展示（已完成，合并在 Turn Loop 中）
+
+- reasoning_content 通过 `agent:reasoning` 事件推送
+- 前端以 `<details>` 折叠块展示，紫色主题色
+
+### 9.3 工具系统（待实现）
 
 **Tool trait**：
 ```rust
