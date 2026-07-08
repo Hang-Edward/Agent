@@ -8,9 +8,26 @@ import type { Root } from "mdast";
 import { ObsidianCallout, parseCallout } from "./ObsidianCallout";
 import type { Components } from "react-markdown";
 
+/* ───── 预处理器：统一 LaTeX 定界符 ───── */
+
+/**
+ * 将 AI 输出的各种 LaTeX 定界符统一为 remark-math 能识别的 $ 格式：
+ *   \(...\)  → $...$   (行内公式)
+ *   \[...\]  → $$...$$  (行间公式)
+ *   已有的 $...$ 和 $$...$$ 保持不变
+ */
+function normalizeLatexDelimiters(text: string): string {
+  return text
+    // \(...\) → $...$
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$")
+    // \[...\] → $$...$$
+    .replace(/\\\[/g, "$$")
+    .replace(/\\\]/g, "$$");
+}
+
 /* ───── Remark 插件：Obsidian Callout ───── */
 
-/** 检测 blockquote 中的 `>[!type]` 语法，标记为 callout */
 function remarkObsidianCallout() {
   return (tree: Root) => {
     visit(tree, "blockquote", (node: any) => {
@@ -22,10 +39,7 @@ function remarkObsidianCallout() {
       const match = parseCallout(firstLeaf.value);
       if (!match) return;
 
-      // 移除 callout 标记行
       firstLeaf.value = match.rest;
-
-      // 标记节点属性
       node.data = {
         hProperties: {
           "data-callout": match.type,
@@ -39,7 +53,6 @@ function remarkObsidianCallout() {
 /* ───── 自定义渲染组件 ───── */
 
 const components: Components = {
-  // Obsidian Callout
   blockquote: ({ children, ...props }) => {
     const attrs = props as Record<string, string>;
     if (attrs["data-callout"]) {
@@ -55,24 +68,13 @@ const components: Components = {
     return <blockquote className="md-blockquote">{children}</blockquote>;
   },
 
-  // 代码块（带复制按钮）
   code: ({ className, children, ...props }) => {
-    const isInline = !className;
-    if (isInline) {
-      return (
-        <code className="md-code-inline" {...props}>
-          {children}
-        </code>
-      );
+    if (!className) {
+      return <code className="md-code-inline" {...props}>{children}</code>;
     }
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
+    return <code className={className} {...props}>{children}</code>;
   },
 
-  // 表格样式
   table: ({ children }) => (
     <div className="md-table-wrapper">
       <table className="md-table">{children}</table>
@@ -87,13 +89,16 @@ interface Props {
 }
 
 export function MarkdownBlock({ content }: Props) {
+  // 先预处理 LaTeX 定界符，再传递给 react-markdown
+  const processed = normalizeLatexDelimiters(content);
+
   return (
     <ReactMarkdown
       components={components}
       remarkPlugins={[remarkObsidianCallout, remarkMath, remarkGfm]}
       rehypePlugins={[rehypeKatex, rehypeHighlight]}
     >
-      {content}
+      {processed}
     </ReactMarkdown>
   );
 }
