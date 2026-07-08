@@ -12,20 +12,19 @@ PC 桌面端 AI 编码 Agent，对标 OpenAI Codex Desktop App，接入 DeepSeek
 - 编辑器：Monaco Editor（效果优先，不在乎包体积）
 - 终端：xterm.js + portable-pty
 - Markdown 渲染：react-markdown + remark-math + rehype-katex + 自定义 Obsidian Callout 组件
-- 持久化：SQLite
+- 持久化：JSON 文件（会话）/ keyring（凭据）
 - 打包：msi/nsis 安装包
 
 ## UI 设计
 
-- **布局**：对标 Codex 三栏布局（左栏导航 + 中栏对话 + 右栏预览/终端）
-- **底部输入栏**：包含模式选择器、模型选择器、权限级别选择器
+- **布局**：对标 Codex 三栏布局（左栏会话 + 中栏对话 + 右栏仪表盘）
+- **主题**：One Dark Pro 配色方案，禁止使用其他主题
+- **底部状态栏**：显示模型、权限级别、API 状态 + 齿轮设置按钮
 - **权限级别（三个）**：
   - 默认模式：高风险操作弹窗确认
   - 自动审查：自动执行，审查变更
   - 完全访问：YOLO 模式，一键放行
-- **主题**：深色/浅色主题切换
-- **Markdown 支持**：标准 Markdown + LaTeX 数学公式 + Obsidian Callout 语法（>[!note/info/warning/tip/...]）
-- **编辑器**：Monaco Editor，语法高亮、自动补全、Diff 对比
+- **Markdown 支持**：标准 Markdown + LaTeX 数学公式 + Obsidian Callout 语法（>[!note/info/warning/tip/...]）+ 代码高亮
 
 ## Agent 架构
 
@@ -38,10 +37,17 @@ PC 桌面端 AI 编码 Agent，对标 OpenAI Codex Desktop App，接入 DeepSeek
 ## DeepSeek API
 
 - 模型：deepseek-v4-flash（默认） / deepseek-v4-pro（可切换）
+- API Key 存储在 Windows 凭据管理器（keyring crate）
 - 流式 SSE 接入
 - 支持 reasoning_content（思考过程展示）
-- DSML 解析器处理 XML 工具调用
+- DSML 解析器处理 XML 工具调用（未来）
 - 前缀缓存优化降本
+
+## Git 规则（重要）
+
+- 较大改动且验证无误后，可以**自行提交**（git commit）
+- **绝对不要推送（git push）到远程仓库**，除非用户明确要求
+- 用户说"推送"时再推送
 
 ## 开发偏好
 
@@ -53,7 +59,7 @@ PC 桌面端 AI 编码 Agent，对标 OpenAI Codex Desktop App，接入 DeepSeek
 
 ## 阶段计划
 
-### Phase 1：基础骨架
+### Phase 1：基础骨架（已完成）
 1. Tauri 2 项目初始化 + React + Tailwind + shadcn/ui
 2. 三栏布局骨架
 3. 对话 UI（气泡 + 输入框 + Markdown/LaTeX/Obsidian 渲染）
