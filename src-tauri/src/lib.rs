@@ -1,7 +1,9 @@
 mod agent;
 mod deepseek;
+mod sandbox;
 mod session;
 mod settings;
+mod tools;
 
 use settings::Settings;
 use tauri::Manager;

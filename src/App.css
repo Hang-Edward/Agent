@@ -1008,8 +1008,99 @@ html, body, #root {
 .callout-quote  { background: rgba(92, 99, 112, 0.08); border-color: #5c6370; }
 .callout-quote .callout-header { background: rgba(92, 99, 112, 0.12); }
 
+/* ===== 工具调用卡片 ===== */
+.tool-call {
+  margin: 6px 0;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.tool-call-success { border-left: 3px solid var(--success); }
+.tool-call-error { border-left: 3px solid var(--danger); }
+.tool-call-running { border-left: 3px solid var(--accent); }
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+}
+
+.tool-call-icon { font-size: 12px; width: 16px; text-align: center; }
+.tool-call-name { color: var(--text-primary); font-weight: 500; flex: 1; }
+
+.tool-call-spinner {
+  width: 10px; height: 10px;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.tool-call-details {
+  padding: 4px 10px;
+}
+
+.tool-call-details summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tool-call-args {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  white-space: pre-wrap;
+}
+
+.tool-call-result {
+  padding: 4px 10px 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.tool-call-result-text {
+  font-size: 11px;
+  color: var(--success);
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+/* 审批弹窗 */
+.approval-dialog {
+  width: 420px;
+}
+
+.approval-desc {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.approval-args {
+  background: var(--bg-tertiary);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.approval-footer {
+  justify-content: center;
+  gap: 12px;
+}
+
 /* KaTeX 公式 */
-.katex { color: var(--text-primary); }
 .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 
 /* ===== 滚动条 ===== */

@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicorikken/tauri-v2-schema/main/tauri.conf.schema.json",
   "productName": "Agent PC",
   "version": "0.1.0",
-  "identifier": "com.agent-pc.app",
+  "identifier": "com.agent-pc.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

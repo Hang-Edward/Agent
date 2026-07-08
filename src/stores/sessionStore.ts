@@ -47,10 +47,19 @@ interface TokenPayload {
 interface ReasoningPayload {
   reasoning: string;
 }
-interface DonePayload {
-  content: string;
-  input_tokens: number;
-  output_tokens: number;
+interface ToolResultPayload {
+  id: string;
+  name: string;
+  result: string;
+}
+
+/** 前端追踪的工具调用（用于 UI 展示） */
+export interface ToolCallDisplay {
+  id: string;
+  name: string;
+  args: string;
+  result?: string;
+  status: "running" | "success" | "error";
 }
 
 /* ───── 价格计算 ───── */
@@ -77,6 +86,8 @@ interface SessionStore {
   streamContent: string;
   /** 实时思考过程 */
   streamReasoning: string;
+  /** 本轮工具调用（用于 UI 展示） */
+  toolCalls: ToolCallDisplay[];
   tokenStats: TokenStats;
 
   loadSessions: () => Promise<void>;
@@ -95,6 +106,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sending: false,
   streamContent: "",
   streamReasoning: "",
+  toolCalls: [],
   tokenStats: { total_input: 0, total_output: 0, total_cost: 0 },
 
   loadSessions: async () => {
@@ -126,6 +138,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       loading: true,
       streamContent: "",
       streamReasoning: "",
+      toolCalls: [],
     });
     try {
       const session = await invoke<Session | null>("get_session", { id });
@@ -183,6 +196,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sending: true,
       streamContent: "",
       streamReasoning: "",
+      toolCalls: [],
       currentSession: {
         ...currentSession,
         messages: [...currentSession.messages, tempUserMsg],
@@ -206,6 +220,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set((s) => ({ streamReasoning: s.streamReasoning + ev.payload.reasoning }));
       });
       unlisteners.push(un2);
+
+      // tool_result 事件
+      const un3 = await listen<ToolResultPayload>("agent:tool_result", (ev) => {
+        const tc: ToolCallDisplay = {
+          id: ev.payload.id,
+          name: ev.payload.name,
+          args: "",
+          result: ev.payload.result,
+          status: "success",
+        };
+        set((s) => ({ toolCalls: [...s.toolCalls, tc] }));
+      });
+      unlisteners.push(un3);
 
       // 3. 启动 Agent Turn（异步，Rust 端通过事件推流）
       const result = await invoke<ChatResult>("start_agent_turn", {
