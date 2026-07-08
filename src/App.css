@@ -1430,6 +1430,31 @@ html, body, #root {
   font-weight: 600;
 }
 
+/* 调试栏 */
+.debug-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-light);
+}
+
+.debug-bar button {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.debug-bar button:hover {
+  color: var(--text-primary);
+  background: #3a3f4b;
+}
+
 /* KaTeX 公式 */
 .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 

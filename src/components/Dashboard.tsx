@@ -88,7 +88,7 @@ function RingProgress({ pct, size = 80 }: { pct: number; size?: number }) {
   );
 }
 
-/** 上下文使用量面板 — 环形展示 */
+/** 上下文使用量面板 — 仅环形展示 */
 function ContextUsage() {
   const ctxTokens = useSessionStore((s) => s.contextTokens);
   const pct = Math.min(100, (ctxTokens / 1_000_000) * 100);
@@ -98,14 +98,6 @@ function ContextUsage() {
       <div className="widget-title">📦 上下文 (1M)</div>
       <div className="widget-body" style={{ alignItems: "center" }}>
         <RingProgress pct={pct} />
-        <div className="metric-row" style={{ width: "100%" }}>
-          <span className="metric-label">已用</span>
-          <span className="metric-value">{ctxTokens.toLocaleString()}</span>
-        </div>
-        <div className="metric-row" style={{ width: "100%" }}>
-          <span className="metric-label">剩余</span>
-          <span className="metric-value">{(1_000_000 - ctxTokens).toLocaleString()}</span>
-        </div>
       </div>
     </div>
   );

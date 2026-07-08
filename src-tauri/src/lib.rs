@@ -94,6 +94,12 @@ fn add_system_message(app: tauri::AppHandle, session_id: String, content: String
     session::save_session(&app, &sess)
 }
 
+/// 测试 IPC 连通性
+#[tauri::command]
+fn ping(msg: String) -> String {
+    format!("pong: {}", msg)
+}
+
 /// 在资源管理器中打开路径
 #[tauri::command]
 fn open_in_explorer(path: String) -> Result<(), String> {
@@ -223,6 +229,7 @@ pub fn run() {
             get_skill,
             add_system_message,
             open_in_explorer,
+            ping,
         ])
         .manage(TerminalSession::new())
         .setup(|app| {

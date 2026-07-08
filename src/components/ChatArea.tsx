@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSessionStore } from "../stores/sessionStore";
 import { MarkdownBlock } from "./MarkdownBlock";
 
@@ -24,9 +25,11 @@ export function ChatArea() {
 
   const handleSend = async () => {
     const text = input.trim();
+    console.log("[ChatArea] handleSend", { text, currentId, sending, msgCount: currentSession?.messages.length });
     if (!text || !currentId || sending) return;
     setInput("");
     await sendMessage(text);
+    console.log("[ChatArea] sendMessage done", { msgCount: useSessionStore.getState().currentSession?.messages.length });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,6 +121,26 @@ export function ChatArea() {
           </>
         )}
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* 调试栏 */}
+      <div className="debug-bar">
+        <button onClick={async () => {
+          try {
+            const res = await invoke("ping", { msg: "hello" });
+            console.log("[debug] ping OK:", res);
+            alert("IPC OK: " + res);
+          } catch (e) {
+            console.error("[debug] ping FAIL:", e);
+            alert("IPC FAIL: " + JSON.stringify(e));
+          }
+        }}>🔌 测试 IPC</button>
+        <button onClick={() => {
+          const s = useSessionStore.getState();
+          console.log("[debug] state:", { currentId: s.currentId, msgCount: s.currentSession?.messages.length, sending: s.sending, lastError: s.lastError });
+          alert(`currentId: ${s.currentId}\n消息数: ${s.currentSession?.messages.length}\nsending: ${s.sending}\nerror: ${s.lastError}`);
+        }}>🔍 状态</button>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>(F12 打开控制台)</span>
       </div>
 
       {/* 输入区 */}
