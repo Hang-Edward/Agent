@@ -20,7 +20,6 @@ function inferLanguage(path: string): string {
     jsx: "javascript",
     rs: "rust",
     py: "python",
-    rs: "rust",
     json: "json",
     md: "markdown",
     css: "css",
