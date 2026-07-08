@@ -78,6 +78,20 @@ fn get_skill(app: tauri::AppHandle, id: String) -> Option<skills::Skill> {
     skills::get_skill(&app, &id)
 }
 
+/// 向会话添加一条系统消息（用于应用 Skill）
+#[tauri::command]
+fn add_system_message(app: tauri::AppHandle, session_id: String, content: String) -> Result<(), String> {
+    let mut sess = session::get_session(&app, &session_id).ok_or("会话不存在")?;
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    sess.messages.push(session::Message {
+        id: uuid::Uuid::new_v4().to_string(),
+        role: session::MessageRole::System,
+        content,
+        created_at: now,
+    });
+    session::save_session(&app, &sess)
+}
+
 /// 列出目录内容（用于文件树）
 #[tauri::command]
 fn list_directory(app: tauri::AppHandle, path: String) -> Result<Vec<serde_json::Value>, String> {
@@ -184,6 +198,7 @@ pub fn run() {
             create_skill,
             delete_skill,
             get_skill,
+            add_system_message,
         ])
         .manage(TerminalSession::new())
         .setup(|app| {

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSkillStore } from "../stores/skillStore";
+import { useSessionStore } from "../stores/sessionStore";
 
 /** Skill 管理器 — 左侧栏 📋 Tab */
 export function SkillManager() {
@@ -81,6 +83,23 @@ export function SkillManager() {
             {viewSkill === s.id && viewDetail && (
               <div className="skill-detail">
                 <pre className="skill-detail-prompt">{viewDetail.system_prompt}</pre>
+                <button
+                  className="btn-sm skill-apply-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentId = useSessionStore.getState().currentId;
+                    if (!currentId) { alert("请先选择一个会话"); return; }
+                    invoke("add_system_message", {
+                      sessionId: currentId,
+                      content: `## Skill: ${viewDetail.name}\n${viewDetail.system_prompt}`,
+                    }).then(() => {
+                      // 刷新会话
+                      useSessionStore.getState().switchSession(currentId);
+                    });
+                  }}
+                >
+                  应用到当前对话
+                </button>
               </div>
             )}
           </div>
