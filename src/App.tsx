@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSettingsStore } from "./stores/settingsStore";
+import { useSessionStore } from "./stores/sessionStore";
 import { SessionList } from "./components/SessionList";
 import { ChatArea } from "./components/ChatArea";
 import { Dashboard } from "./components/Dashboard";
@@ -8,11 +9,13 @@ import { StatusBar } from "./components/StatusBar";
 import "./App.css";
 
 function App() {
-  const load = useSettingsStore((s) => s.load);
+  const loadSettings = useSettingsStore((s) => s.load);
+  const loadSessions = useSessionStore((s) => s.loadSessions);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadSettings();
+    loadSessions();
+  }, [loadSettings, loadSessions]);
 
   return (
     <div className="app">
