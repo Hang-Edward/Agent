@@ -1280,6 +1280,102 @@ html, body, #root {
   background: var(--bg-hover);
 }
 
+/* ===== Skill 管理器 ===== */
+.skill-list {
+  padding: 0 4px;
+}
+
+.skill-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.skill-item:hover {
+  background: var(--bg-hover);
+}
+
+.skill-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.skill-name {
+  display: block;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.skill-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-detail {
+  padding: 6px 10px 10px;
+}
+
+.skill-detail-prompt {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  white-space: pre-wrap;
+  background: var(--bg-tertiary);
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.skill-form {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.skill-input:focus {
+  border-color: var(--input-focus);
+}
+
+.skill-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+}
+
+.skill-textarea:focus {
+  border-color: var(--input-focus);
+}
+
 /* KaTeX 公式 */
 .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 

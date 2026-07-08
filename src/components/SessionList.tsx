@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUiStore } from "../stores/uiStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { FileTree } from "./FileTree";
+import { SkillManager } from "./SkillManager";
 
 /** 会话列表 — 左侧栏 */
 export function SessionList() {
@@ -15,7 +16,7 @@ export function SessionList() {
     deleteSession,
     renameSession,
   } = useSessionStore();
-  const [leftTab, setLeftTab] = useState<"sessions" | "files">("sessions");
+  const [leftTab, setLeftTab] = useState<"sessions" | "files" | "skills">("sessions");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -62,6 +63,12 @@ export function SessionList() {
                 onClick={() => setLeftTab("files")}
               >
                 📁
+              </button>
+              <button
+                className={`panel-tab ${leftTab === "skills" ? "panel-tab-active" : ""}`}
+                onClick={() => setLeftTab("skills")}
+              >
+                📋
               </button>
             </div>
             <button
@@ -129,11 +136,13 @@ export function SessionList() {
             {sessions.length} 个会话
           </div>
             </>
-          ) : (
+          ) : leftTab === "files" ? (
             <div className="panel-section">
               <div className="panel-section-header">📁 文件</div>
               <FileTree />
             </div>
+          ) : (
+            <SkillManager />
           )}
         </>
       ) : (
