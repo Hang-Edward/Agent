@@ -23,7 +23,7 @@ pub async fn run_turn(
     // 加载会话
     let mut sess = session::get_session(app, session_id).ok_or("会话不存在")?;
 
-    // 保存用户消息
+    // 保存用户消息（立即持久化，即使后续 API 失败也不丢失）
     let now = || chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     sess.messages.push(Message {
         id: Uuid::new_v4().to_string(),
@@ -31,6 +31,7 @@ pub async fn run_turn(
         content: user_input.to_string(),
         created_at: now(),
     });
+    session::save_session(app, &sess)?;
 
     // 工作目录沙箱
     let sandbox_dir = if !settings.working_dir.is_empty() {

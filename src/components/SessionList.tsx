@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { useUiStore } from "../stores/uiStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { SkillManager } from "./SkillManager";
@@ -32,7 +33,8 @@ export function SessionList() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("确定删除这个会话？")) {
+    const ok = await confirm("确定删除这个会话？", { title: "删除会话", kind: "warning" });
+    if (ok) {
       await deleteSession(id);
     }
   };
