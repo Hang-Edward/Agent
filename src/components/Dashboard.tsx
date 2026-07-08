@@ -2,17 +2,47 @@ import { useUiStore } from "../stores/uiStore";
 
 /* ───────── 各仪表盘小组件 ───────── */
 
-/** 任务进度面板 */
+/** 任务步骤 */
+interface TaskStep {
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "failed";
+}
+
+/** 任务进度面板 — 多步骤清单模式 */
 function TaskProgress() {
+  // 示例数据，后续由 Agent 循环更新
+  const steps: TaskStep[] = [
+    { id: "1", label: "分析需求", status: "done" },
+    { id: "2", label: "读取相关文件", status: "done" },
+    { id: "3", label: "生成修改方案", status: "running" },
+    { id: "4", label: "执行代码修改", status: "pending" },
+    { id: "5", label: "验证修改结果", status: "pending" },
+  ];
+
   return (
     <div className="widget">
-      <div className="widget-title">📋 任务进度</div>
+      <div className="widget-title">📋 任务步骤</div>
       <div className="widget-body">
-        <div className="progress-step">准备就绪</div>
-        <div className="progress-bar-bg">
-          <div className="progress-bar-fill" style={{ width: "0%" }} />
+        <div className="step-list">
+          {steps.map((step) => (
+            <div
+              key={step.id}
+              className={`step-item step-${step.status}`}
+            >
+              <span className="step-icon">
+                {step.status === "done" && "✓"}
+                {step.status === "running" && "◌"}
+                {step.status === "pending" && "○"}
+                {step.status === "failed" && "✕"}
+              </span>
+              <span className={`step-label ${step.status === "done" ? "step-done" : ""}`}>
+                {step.label}
+              </span>
+              {step.status === "running" && <span className="step-spinner" />}
+            </div>
+          ))}
         </div>
-        <div className="progress-label">等待指令...</div>
       </div>
     </div>
   );

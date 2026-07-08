@@ -308,31 +308,68 @@ body,
   color: #f87171;
 }
 
-/* 进度条 */
-.progress-step {
+/* 步骤清单 */
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
   font-size: 13px;
   color: #e0e0e0;
-  font-weight: 500;
 }
 
-.progress-bar-bg {
-  width: 100%;
-  height: 6px;
-  background: #2a2a4a;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4f46e5, #6366f1);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.progress-label {
-  font-size: 12px;
+.step-pending {
   color: #666;
+}
+
+.step-running {
+  color: #e0e0e0;
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.step-done {
+  color: #666;
+  text-decoration: line-through;
+}
+
+.step-failed {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.step-icon {
+  font-size: 12px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.step-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #4f46e5;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Diff 条 */
