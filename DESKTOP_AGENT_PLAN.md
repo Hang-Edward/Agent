@@ -1,419 +1,630 @@
-# PC 桌面端 AI 编码 Agent — 完整规划方案
+# Desktop Agent PC — 完整实现流程手册
 
-> 基于 Codex/Claude Code 架构调研，目标：开发一款原生桌面 Agent，接入 DeepSeek API。
-
----
-
-## 一、整体架构
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Desktop UI (Tauri 2)                    │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │            Frontend: React 19 + TypeScript + Vite   │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────┐  │  │
-│  │  │ 对话面板  │ │ 文件树   │ │ Diff视图  │ │终端  │  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────┘  │  │
-│  └──────────────────────┬─────────────────────────────┘  │
-│                         │ Tauri IPC (invoke + events)    │
-│  ┌──────────────────────▼─────────────────────────────┐  │
-│  │          Rust 后端 (Agent Runtime Engine)           │  │
-│  │                                                    │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │  │
-│  │  │ Turn Loop│ │ 工具系统 │ │ 权限/安全层       │  │  │
-│  │  └──────────┘ └──────────┘ └───────────────────┘  │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │  │
-│  │  │ 上下文管理│ │ 会话持久 │ │ MCP扩展           │  │  │
-│  │  └──────────┘ └──────────┘ └───────────────────┘  │  │
-│  └──────────────────────┬─────────────────────────────┘  │
-└─────────────────────────┼───────────────────────────────┘
-                          │ HTTPS + SSE
-              ┌───────────▼────────────┐
-              │   DeepSeek API         │
-              │  (deepseek-v4-pro/flash)│
-              └────────────────────────┘
-```
-
-### 核心设计原则
-
-- **Less scaffolding, more model** — Agent 循环信任模型判断，不写死路由/分类器
-- **高性能 Rust 核心** — Turn Loop、权限、沙箱用 Rust 实现，前端只管渲染
-- **富 UI 体验** — 不是终端工具，而是完整的桌面应用（原生窗口、分栏、实时流式渲染）
-- **先做核心功能，再逐步扩展** — MVP = 对话 + 文件编辑 + 命令执行 + 最小权限模型
+> 桌面 AI 编码 Agent，Tauri 2 + React 19 + Rust + DeepSeek API
+> 主题：One Dark Pro
+> 仓库：https://github.com/Hang-Edward/Agent.git
 
 ---
 
-## 二、技术栈选型
+## 〇、环境准备（首次搭建步骤）
 
-| 层级 | 技术 | 选型理由 |
-|------|------|----------|
-| **桌面框架** | **Tauri 2** | 二进制 < 15MB，原生性能，Windows 原生支持完善，Rust 后端 |
-| **前端框架** | **React 19 + TypeScript + Vite** | 生态成熟，组件化 UI，HMR 开发体验好 |
-| **样式** | **Tailwind CSS v4 + shadcn/ui** | 快速构建美观 UI，组件库丰富 |
-| **状态管理** | **Zustand** | 轻量高效，适合 AI 聊天类应用 |
-| **终端** | **xterm.js** (前端) + **portable-pty** (Rust) | 完整终端模拟，支持 Windows |
-| **Diff 视图** | **react-diff-viewer-continued** 或 monaco-editor diff | 代码变更对比 |
-| **编辑器** | **Monaco Editor** (VS Code 内核) | 完整代码编辑体验 |
-| **AI SDK** | 自研 Rust Agent Loop (直接调用 DeepSeek API) | 完全控制，无框架依赖 |
-| **序列化** | **serde** + **Zod** (前端) | 类型安全的数据校验 |
-| **持久化** | **SQLite** (tauri-plugin-sql) | 会话历史、设置存储 |
-| **Markdown 渲染** | **react-markdown** + **rehype-highlight** | AI 回复渲染 |
+### 0.1 所需工具
+
+| 工具 | 版本 | 安装位置 |
+|------|------|---------|
+| Rust / Cargo | 1.96.1 | `C:\Users\<user>\.cargo\` |
+| VS 2022 Build Tools (MSVC) | 14.44 | `D:\应用-Applications\VS2022-BuildTools` |
+| Node.js | 24.14.1 | 系统默认 |
+| npm | 11.11.0 | 随 Node.js |
+
+### 0.2 安装步骤
+
+```powershell
+# 1. 安装 Rust (rustup)
+# 从 https://rustup.rs 下载 rustup-init.exe，或通过命令行：
+curl -o "$env:TEMP\rustup-init.exe" "https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe"
+& "$env:TEMP\rustup-init.exe" -y --default-toolchain stable
+
+# 2. 安装 VS 2022 Build Tools（C++ 工作负载）
+# 下载 vs_BuildTools.exe 并安装到 D:\应用-Applications\VS2022-BuildTools
+vs_BuildTools.exe --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet --wait --norestart --installPath "D:\应用-Applications\VS2022-BuildTools"
+
+# 3. 将 cargo 加入 PATH
+$env:PATH = "C:\Users\$env:USERNAME\.cargo\bin;$env:PATH"
+```
+
+### 0.3 验证安装
+
+```powershell
+rustc --version          # → rustc 1.96.1
+cargo --version          # → cargo 1.96.1
+node --version           # → v24.14.1
+npm --version            # → 11.11.0
+# MSVC 编译器位置:
+D:\应用-Applications\VS2022-BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe
+```
 
 ---
 
-## 三、DeepSeek API 接入细节
+## 一、项目初始化（Phase 1.1）
 
-### API 兼容性
+### 1.1 目录和 Git
 
-DeepSeek 提供 **OpenAI 兼容 API**，可使用标准 OpenAI SDK 或原生 HTTP 调用：
+```powershell
+# 在 D:\VScode Projects\Agent 中操作
+git init
+git remote add origin https://github.com/Hang-Edward/Agent.git
+```
+
+### 1.2 创建文件结构
 
 ```
+D:\VScode Projects\Agent/
+├── .gitignore            # Rust/Node/IDE 忽略规则
+├── CLAUDE.md             # 项目级 AI 指令
+├── DESKTOP_AGENT_PLAN.md # 本文档
+├── package.json          # Node 项目配置
+├── index.html            # Vite 入口 HTML
+├── vite.config.ts        # Vite 配置（端口 1420）
+├── tsconfig.json         # TS 根配置
+├── tsconfig.app.json     # 应用 TS 配置
+├── tsconfig.node.json    # Node 侧 TS 配置
+├── src/                  # React 前端源码
+│   ├── main.tsx          # 入口
+│   ├── App.tsx           # 根组件
+│   ├── App.css           # 全局样式（One Dark Pro）
+│   └── vite-env.d.ts     # Vite 类型声明
+├── src-tauri/            # Rust 后端
+│   ├── Cargo.toml        # Rust 依赖
+│   ├── build.rs          # Tauri 构建脚本
+│   ├── tauri.conf.json   # Tauri 配置（窗口 1280x800）
+│   ├── capabilities/     # Tauri 2 权限
+│   │   └── default.json
+│   ├── icons/            # 应用图标
+│   └── src/
+│       ├── main.rs       # Windows 入口
+│       └── lib.rs        # Tauri App 配置 + 命令注册
+├── public/               # 静态资源
+└── memory-agent-pc.md    # 项目内存记录
+```
+
+### 1.3 关键配置
+
+**package.json 核心依赖**：
+- `@tauri-apps/api` `@tauri-apps/cli` `@tauri-apps/plugin-shell` `@tauri-apps/plugin-dialog` `@tauri-apps/plugin-fs`
+- `react` `react-dom` — UI 框架
+- `zustand` — 状态管理
+- `react-markdown` `remark-math` `rehype-katex` `rehype-highlight` `remark-gfm` `katex` — Markdown 渲染
+- `highlight.js` — 代码高亮
+
+**Cargo.toml 核心依赖**：
+- `tauri` `tauri-plugin-shell` `tauri-plugin-dialog` `tauri-plugin-fs` — Tauri 框架
+- `serde` `serde_json` — 序列化
+- `keyring` — Windows 凭据管理器
+- `uuid` `chrono` — ID 生成和日期
+- `reqwest` — HTTP 客户端（DeepSeek API）
+- `tokio` — 异步运行时
+
+**tauri.conf.json 窗口配置**：
+- 窗口尺寸：1280×800，最小 900×600
+- 前端端口：1420
+- CSP：null（允许全部）
+
+### 1.4 初始提交
+
+```powershell
+git add -A
+git commit -m "Initial project scaffold: Tauri 2 + React 19 + DeepSeek-ready"
+git push -u origin master
+```
+
+---
+
+## 二、设置面板（Phase 1.2）
+
+### 2.1 Rust 后端：设置模块
+
+**文件**：`src-tauri/src/settings.rs`
+
+**功能**：
+- `Settings` 结构体：`api_key`, `model`, `permission_level`, `working_dir`
+- `PermissionLevel` 枚举：`Default` / `Review` / `Full`
+- API Key 通过 `keyring` crate 存入 Windows 凭据管理器
+- 其他设置存入 `%APPDATA%/com.agent-pc.app/settings.json`
+- 启动时自动创建数据目录
+
+**Tauri 命令**：
+```rust
+#[tauri::command]
+fn get_settings(app: tauri::AppHandle) -> Settings        // 读取设置
+fn save_settings(app: tauri::AppHandle, settings: Settings) // 保存设置
+```
+
+### 2.2 前端：设置对话框
+
+**Store**：`src/stores/settingsStore.ts`（Zustand）
+- `settings` + `dialogOpen` + `loaded` 三个状态
+- `load()` / `save()` 通过 Tauri IPC 调用 Rust
+
+**组件**：`src/components/SettingsDialog.tsx`
+- 模态对话框，半透明遮罩
+- API Key 输入（密码框 + 显示/隐藏切换）
+- 模型选择下拉框（Flash / Pro）
+- 权限级别三选一（默认 / 自动审查 / 完全访问）
+- 工作目录输入
+
+**组件**：`src/components/StatusBar.tsx`
+- 底部显示：模型 | 权限级别 | API 状态
+- 齿轮按钮 → 打开设置对话框
+
+### 2.3 设置存储结构
+
+```
+%APPDATA%/com.agent-pc.app/
+├── settings.json       # 设置（不含 API Key）
+└── sessions/           # 会话目录
+    ├── {uuid}.json     # 每个会话一个文件
+    └── ...
+```
+
+Windows 凭据管理器（通过 keyring）：
+- 服务名：`agent-pc`
+- 用户名：`deepseek-api-key`
+- 值：API Key 原文
+
+### 2.4 提交记录
+
+```
+commit: Implement settings panel with encrypted API key storage
+- Rust backend: Settings struct, keyring integration, JSON file storage
+- Zustand store + SettingsDialog modal + StatusBar
+- Permission levels: default / review / full
+- Model: flash / pro
+```
+
+---
+
+## 三、三栏布局 + 仪表盘（Phase 1.3）
+
+### 3.1 UI 状态管理
+
+**Store**：`src/stores/uiStore.ts`
+```typescript
+leftPanelOpen: boolean
+rightPanelOpen: boolean
+toggleLeftPanel() / toggleRightPanel()
+```
+
+### 3.2 左栏：会话列表
+
+**组件**：`src/components/SessionList.tsx`
+- 折叠/展开按钮（▶ / ◀）
+- 「新对话」按钮
+- 会话列表（点击切换，高亮当前）
+- 鼠标悬浮显示重命名(✎) / 删除(✕) 按钮
+- 底栏显示会话数量
+
+### 3.3 中栏：对话区
+
+**组件**：`src/components/ChatArea.tsx`
+- 消息列表（按角色区分样式）
+- 空状态 → 显示欢迎语
+- 加载中 → 显示 loading
+- 输入框 + 发送按钮（Enter 提交）
+
+### 3.4 右栏：仪表盘
+
+**组件**：`src/components/Dashboard.tsx`
+
+五个小部件：
+1. **任务步骤** — 步骤清单模式
+   - 示例：分析需求 ✓ / 读取文件 ✓ / 生成方案 ◌ ⟳ / 执行修改 ○ / 验证 ○
+   - 已完成(✓) 划掉，进行中(◌) 旋转动画，待办(○)，失败(✕)
+2. **Token 消耗** — 输入/输出/总计/费用
+3. **缓存命中率** — 占位（DeepSeek 暂未暴露）
+4. **Git 状态** — 占位（分支/变更文件）
+5. **Diff 概览** — 占位（+新增/-删除）
+
+### 3.5 提交记录
+
+```
+commit: Implement three-column collapsible layout with dashboard
+- Collapsible left/right panels with transition animation
+- Session list + Chat area + Dashboard panels
+- Step checklist, token usage, cache/git/diff widgets
+```
+
+---
+
+## 四、会话管理（Phase 1.4）
+
+### 4.1 Rust 后端：会话模块
+
+**文件**：`src-tauri/src/session.rs`
+
+**数据结构**：
+```rust
+Session { id, name, created_at, updated_at, messages: Vec<Message> }
+Message { id, role: User|Assistant|System, content, created_at }
+SessionSummary { id, name, created_at, updated_at, message_count }
+```
+
+**存储**：JSON 文件，每个会话 `{app_data}/sessions/{id}.json`
+
+**CRUD 命令**：
+```rust
+list_sessions()    → Vec<SessionSummary>    // 按更新时间降序
+create_session()   → Session                 // 自动生成 ID 和名称
+get_session(id)    → Option<Session>         // 含完整消息列表
+delete_session(id) → Result<(), String>      // 删除文件
+rename_session(id, name) → Result<(), String>
+save_session(app, &Session) → Result<(), String>  // 完整覆盖写入
+```
+
+### 4.2 前端：会话 Store
+
+**Store**：`src/stores/sessionStore.ts`
+- `sessions[]` / `currentId` / `currentSession` / `loading`
+- `loadSessions()` / `createSession()` / `switchSession(id)` / `deleteSession(id)` / `renameSession(id, name)`
+
+### 4.3 前端：会话列表交互
+
+- 新建 → 自动切换到新会话
+- 点击 → 切换并加载消息
+- 悬浮显示 ✎ ✕
+- 重命名 → 行内 input，Enter/Blur 保存
+- 删除 → confirm 确认
+
+### 4.4 提交记录
+
+```
+commit: Implement session management with CRUD operations
+- JSON file storage per session
+- Frontend store with all CRUD actions
+- Inline rename, delete with confirm
+- User/assistant bubble styles
+```
+
+---
+
+## 五、DeepSeek API 接入（Phase 1.5）
+
+### 5.1 Rust 后端：API 客户端
+
+**文件**：`src-tauri/src/deepseek.rs`
+
+**请求**：
+```rust
 POST https://api.deepseek.com/v1/chat/completions
-Authorization: Bearer <api-key>
+Authorization: Bearer {api_key}
+{
+  "model": "deepseek-v4-flash",
+  "messages": [{ "role": "user", "content": "..." }],
+  "stream": false
+}
 ```
 
-### 关键参数
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `model` | `deepseek-v4-pro` / `deepseek-v4-flash` | Pro 更强但更贵，Flash 更快更便宜 |
-| `stream` | `true` | 流式 SSE 输出，实现打字机效果 |
-| `tools` | 自定义工具列表 | 文件读写、Bash、搜索等 |
-| `max_tokens` | 4096~8192 | 按需设置 |
-| `temperature` | 0.0~0.7 | 编码场景建议 0.1~0.3 |
-
-### 流式处理流程
-
-```
-用户输入 → 构造请求 → SSE 连接 →
-  while (收到响应):
-    if token: 渲染到对话气泡
-    if reasoning_content: 显示思考过程
-    if tool_calls: 解析 → 执行 → 结果追加 → 继续请求
-  done → 返回最终文本
+**响应**：
+```rust
+ChatResult { content: String, input_tokens: u32, output_tokens: u32 }
 ```
 
-### 关键注意点
+**错误处理**：
+- API Key 为空 → 返回"请在设置中配置 API Key"
+- 网络失败 → 返回具体错误信息
+- HTTP 错误 → 返回状态码 + 响应体
 
-- **DeepSeek 使用 XML 风格工具调用**：`<｜｜DSML｜｜tool_calls>...`，需要在流式解析时处理跨 chunk 边界
-- **reasoning_content** 字段包含思考过程，可展示给用户提升透明度
-- **前缀缓存 (Prefix Caching)**：将静态内容放在 prompt 前方，可大幅降低成本（实测最高 99.82% 缓存命中率）
+### 5.2 Tauri 命令：send_message
+
+**命令**：`send_message(app, session_id, content)`
+
+**完整流程**：
+1. 加载设置（API Key + Model）
+2. 获取当前会话
+3. 保存用户消息到会话
+4. 将会话历史转换为 DeepSeek 消息格式
+5. 调用 DeepSeek API
+6. 保存 AI 回复到会话
+7. 如果会话名称为默认（"新对话..."），取第一条消息前 20 字作为名称
+8. 返回 ChatResult
+
+### 5.3 前端：发送流程
+
+**Store 扩展**：`sessionStore.sendMessage(content)`
+1. 本地插入用户消息（即时显示）
+2. 设置 `sending = true`
+3. 调用 `invoke("send_message", { sessionId, content })`
+4. 重新加载完整会话
+5. 更新 Token 统计（按 DeepSeek V4 定价计算费用）
+6. 设置 `sending = false`
+
+**Token 价格**：
+| 模型 | 输入 ($/M tokens) | 输出 ($/M tokens) |
+|------|-------------------|-------------------|
+| deepseek-v4-flash | 0.15 | 0.6 |
+| deepseek-v4-pro | 2.0 | 8.0 |
+
+### 5.4 提交记录
+
+```
+commit: Connect DeepSeek API with chat flow end-to-end
+- Rust HTTP client for chat completions
+- send_message command with full session integration
+- Token stats in dashboard (input/output/cost)
+- "thinking..." animation during API call
+```
 
 ---
 
-## 四、Agent Runtime 引擎设计
+## 六、Markdown 渲染（Phase 1.6）
 
-### 4.1 Turn Loop（核心循环）
+### 6.1 MarkdownBlock 组件
+
+**文件**：`src/components/MarkdownBlock.tsx`
+
+**渲染管线**：
+```
+Markdown 文本
+  → react-markdown
+    → remarkObsidianCallout (自定义插件)
+    → remarkGfm (表格/删除线)
+    → remarkMath (LaTeX 解析)
+    → rehypeKatex (LaTeX → HTML)
+    → rehypeHighlight (代码高亮)
+  → 自定义 components (Callout/代码/表格)
+  → React 元素
+```
+
+### 6.2 Obsidian Callout 支持
+
+**插件**：`remarkObsidianCallout()`
+- 遍历 AST 的 `blockquote` 节点
+- 检测首行 `>[!type]` 模式
+- 标记节点属性 `data-callout` + `data-title`
+
+**组件**：`src/components/ObsidianCallout.tsx`
+
+**支持类型**：note, info, tip, warning, danger, success, question, bug, example, quote
+
+**样式**：每个类型独立颜色（One Dark Pro 语义色）、左侧 4px 色条、标题背景色
+
+**用法**：
+```markdown
+>[!warning] 注意
+> 这里是警告内容，会渲染为带图标的彩色 callout 块。
+```
+
+### 6.3 样式覆盖
+
+| 元素 | 样式 |
+|------|------|
+| 代码块 | 深色背景 `#1e1e1e`，圆角 8px，橙色文字 |
+| 内联代码 | 粉色 `#d19a66`，灰底 |
+| 表格 | 交替行颜色，表头灰底 |
+| 引用块 | 蓝色左边框 3px |
+| 链接 | 蓝色 `#61afef` |
+| 标题 | 渐变字号 h1~h4 |
+
+### 6.4 入口 CSS 导入
+
+```typescript
+// src/main.tsx
+import "katex/dist/katex.min.css";           // LaTeX 公式样式
+import "highlight.js/styles/github-dark.css"; // 代码高亮暗色主题
+```
+
+### 6.5 提交记录
+
+```
+commit: Implement rich Markdown rendering with LaTeX and Obsidian Callout
+- react-markdown with remark-gfm/math + rehype-katex/highlight
+- Custom remark plugin for >[!note] callout detection
+- 10 callout types with One Dark Pro semantic colors
+- Full CSS: code blocks, tables, lists, blockquotes
+```
+
+---
+
+## 七、One Dark Pro 主题
+
+### 7.1 CSS 变量体系
+
+```css
+:root {
+  --bg-primary:   #282c34;   /* 主内容区 */
+  --bg-secondary: #21252b;   /* 面板/侧栏 */
+  --bg-tertiary:  #1e1e1e;   /* 输入框/代码块 */
+  --bg-hover:     #2c313a;   /* 悬停 */
+  --text-primary: #abb2bf;   /* 主文字 */
+  --text-secondary: #5c6370; /* 次要文字 */
+  --text-muted:   #4b5263;   /* 禁用/提示 */
+  --border:       #3a3f4b;   /* 边框 */
+  --border-light: #2c313a;   /* 浅边框 */
+  --accent:       #61afef;   /* 蓝色主色 */
+  --success:      #98c379;
+  --warning:      #e5c07b;
+  --danger:       #e06c75;
+  --purple:       #c678dd;
+  --cyan:         #56b6c2;
+  --orange:       #d19a66;
+}
+```
+
+### 7.2 覆盖范围
+
+所有 UI 元素均使用 CSS 变量，包括：
+- 对话框 / 表单 / 按钮
+- Markdown / 代码 / Callout
+- 滚动条 / 状态栏
+- highlight.js 覆盖 (`!important` 强制暗色背景)
+
+---
+
+## 八、当前文件结构（Phase 1 完成后）
+
+```
+D:\VScode Projects\Agent/
+├── .gitignore
+├── CLAUDE.md                       # 项目规则（含 Git 提交/推送规则）
+├── DESKTOP_AGENT_PLAN.md           # 本文档
+├── package.json
+├── package-lock.json
+├── index.html
+├── vite.config.ts
+├── tsconfig.json / .app.json / .node.json
+├── dist/                           # 前端构建产物
+├── src/
+│   ├── main.tsx                    # 入口（导入 KaTeX + highlight.js CSS）
+│   ├── App.tsx                     # 根组件
+│   ├── App.css                     # 全局样式（One Dark Pro）
+│   ├── vite-env.d.ts
+│   ├── stores/
+│   │   ├── settingsStore.ts        # 设置状态管理
+│   │   ├── sessionStore.ts         # 会话 + Token 统计 + 发送消息
+│   │   └── uiStore.ts              # 面板折叠状态
+│   └── components/
+│       ├── SessionList.tsx         # 左栏：会话列表
+│       ├── ChatArea.tsx            # 中栏：对话 + 输入
+│       ├── Dashboard.tsx           # 右栏：仪表盘（5 widgets）
+│       ├── SettingsDialog.tsx      # 设置对话框
+│       ├── StatusBar.tsx           # 底部状态栏
+│       ├── MarkdownBlock.tsx       # Markdown 渲染（含 Callout 插件）
+│       └── ObsidianCallout.tsx     # Obsidian Callout 组件
+├── src-tauri/
+│   ├── Cargo.toml
+│   ├── build.rs
+│   ├── tauri.conf.json
+│   ├── capabilities/default.json
+│   ├── icons/
+│   │   ├── 32x32.png / 128x128.png / 128x128@2x.png
+│   │   └── icon.ico
+│   ├── gen/schemas/                # Tauri 自动生成
+│   └── src/
+│       ├── main.rs
+│       ├── lib.rs                  # Tauri 配置 + 所有命令注册
+│       ├── settings.rs             # 设置 CRUD + keyring 加密
+│       ├── session.rs              # 会话 CRUD + JSON 持久化
+│       └── deepseek.rs             # DeepSeek API 客户端
+└── public/
+```
+
+---
+
+## 九、Phase 2：Agent 核心（进行中）
+
+### 9.1 Turn Loop 引擎
+
+**目标**：实现 Agent 自主循环
 
 ```
 loop {
-    // 1. 构造请求（系统 prompt + 历史 + 新工具结果 + 用户输入）
-    let request = build_request(context);
-
-    // 2. 流式请求 DeepSeek API
-    let stream = deepseek_client.chat_stream(request);
-
+    // 1. 构造请求（System Prompt + 历史消息 + 工具结果）
+    // 2. 流式请求 DeepSeek API（stream=true）
     // 3. 解析 SSE 事件流
-    for event in stream {
-        match event {
-            Token(text) => emit_to_ui(text),
-            Reasoning(text) => emit_to_ui_reasoning(text),
-            ToolCall(name, args) => {
-                // 4. 执行工具
-                let result = execute_tool(name, args).await;
-
-                // 5. 结果追加到上下文，继续循环
-                context.add_tool_result(name, result);
-                break; // 跳出当前流，发送新请求
-            },
-            Done => return final_text,
-        }
+    match event {
+        Token(text)          → 推送到前端渲染
+        Reasoning(text)      → 显示思考过程
+        ToolCall(name, args) → 执行工具 → 结果追加到上下文 → 继续循环
+        Done                 → 返回最终结果
     }
 }
 ```
 
-### 4.2 工具系统
+**关键设计**：
+- 系统 Prompt 包含角色定义 + 工具定义（JSON Schema）
+- 工具结果作为新消息加入上下文，触发下一轮
+- 上下文窗口管理：滑动窗口 + 摘要压缩
 
-每个工具的定义：
+### 9.2 流式 SSE 接入
 
+**Rust 端**：使用 `reqwest` 的流式 API 逐 chunk 读取 SSE
+**前端**：通过 Tauri Event 系统实时接收 token
+
+### 9.3 工具系统
+
+**Tool trait**：
 ```rust
 pub trait Tool {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
-    fn parameters(&self) -> JsonSchema;  // JSON Schema 供模型理解
+    fn parameters(&self) -> serde_json::Value;  // JSON Schema
     fn is_read_only(&self) -> bool;
-    fn execute(&self, args: JsonValue) -> Result<String>;
+    fn execute(&self, args: serde_json::Value) -> Result<String, String>;
 }
 ```
 
-#### MVP 核心工具
+**MVP 工具**：
+| 工具 | 功能 | 只读 | 需审批 |
+|------|------|------|--------|
+| read | 读取文件 | ✅ | ❌ |
+| write | 写入/覆盖 | ❌ | ✅ |
+| edit | 精确替换 | ❌ | ✅ |
+| glob | 文件搜索 | ✅ | ❌ |
+| grep | 内容搜索 | ✅ | ❌ |
+| bash | 命令执行 | 视情况 | 视情况 |
+| finish | 结束任务 | — | — |
 
-| 工具 | 功能 | 只读 | 需要确认 |
-|------|------|------|---------|
-| `read` | 读取文件内容 | ✅ | ❌ |
-| `write` | 写入/覆盖文件 | ❌ | ✅ |
-| `edit` | 精确替换文件内容 | ❌ | ✅ |
-| `glob` | 搜索文件名 | ✅ | ❌ |
-| `grep` | 搜索文件内容 | ✅ | ❌ |
-| `bash` | 执行 Shell 命令 | 视情况 | 视情况 |
-| `search_web` | 网络搜索 | ✅ | ❌ |
-| `finish` | 结束任务 | - | - |
+### 9.4 文件沙箱
 
-### 4.3 上下文管理
+- 限制文件操作到用户指定的工作目录
+- 路径规范化，防止 `../` 逃逸
+- Rust 侧路径校验
 
-```
-对话结构:
-  System Prompt (静态，缓存优化优先)
-  ├── 角色定义
-  ├── 工具定义 (JSON Schema)
-  ├── 安全规则
-  └── 工作目录信息
-  ──── ← SYSTEM_PROMPT_DYNAMIC_BOUNDARY
-  User Context (动态)
-  ├── CLAUDE.md / AGENTS.md 项目规则
-  ├── 当前工作目录状态
-  └── 用户偏好
+### 9.5 审批流程
 
-  历史消息 (滑动窗口 / 压缩)
-  ├── 最近的 N 轮对话
-  ├── 关键工具结果摘要
-  └── 压缩后的历史总结
-```
+- 只读工具 → 自动执行
+- 写入工具 → 弹窗确认（可记忆为"本次会话允许"）
+- Bash 命令 → 弹窗显示命令内容 + 确认
 
-**窗口管理策略**：
-- 保持最近的 30~50 条消息完整
-- 超出的部分自动压缩为结构化摘要
-- 压缩失败时有熔断机制（最多重试 3 次）
+### 9.6 Diff 视图
+
+- 文件修改后显示代码变更对比
+- 绿色 = 新增，红色 = 删除
+- 用户可以逐块接受/拒绝
 
 ---
 
-## 五、UI 设计
+## 十、完整构建验证
 
-### 5.1 主界面布局
+每次修改后执行：
 
-```
-┌──────────────────────────────────────────────────────┐
-│  Title Bar: [Agent Name] - [Project]     [⚙] [□] [×]│
-├──────────┬───────────────────┬───────────────────────┤
-│          │                   │                       │
-│  侧边栏   │    对话主面板      │   右侧面板            │
-│  (可折叠) │                   │                       │
-│          │  ┌─────────────┐  │  ┌─────────────────┐  │
-│  📁 文件树│  │ 用户消息气泡  │  │  Diff 预览        │  │
-│          │  └─────────────┘  │  │                  │  │
-│  📋 会话  │  ┌─────────────┐  │  │  +1 -2 行       │  │
-│  列表     │  │ AI 回复     │  │  │  ...            │  │
-│          │  │ (流式渲染)   │  │  │                  │  │
-│  🔧 工具  │  │ [思考过程]   │  │  └─────────────────┘  │
-│  历史     │  │ [工具调用]   │  │                       │
-│          │  │ [执行结果]   │  │  ┌─────────────────┐  │
-│          │  └─────────────┘  │  │  终端面板          │  │
-│          │                   │  │  (xterm.js)       │  │
-│          │  ┌─────────────┐  │  │                  │  │
-│          │  │ 输入框 + 按钮 │  │  │  $ git status    │  │
-│          │  └─────────────┘  │  │  ...              │  │
-│          │                   │  │  └─────────────────┘  │
-├──────────┴───────────────────┴───────────────────────┤
-│  Status Bar: [Model: deepseek-v4-flash] [Tokens: 1.2k]│
-└──────────────────────────────────────────────────────┘
-```
+```powershell
+# 1. TypeScript 类型检查
+npx tsc --noEmit
 
-### 5.2 核心交互流程
+# 2. Vite 前端构建
+npx vite build
 
-1. **对话模式** — 在输入框输入自然语言指令，AI 回复 + 自动执行工具
-2. **流式渲染** — AI 回复实时显示，思考过程折叠可展开，工具调用实时展示进度
-3. **Diff 确认** — 文件修改时右侧显示 diff，用户可以接受/拒绝
-4. **命令执行** — 终端面板实时显示命令输出，内置中断（Ctrl+C）
-5. **审批流程** — 高风险操作（写文件、执行命令）弹出确认对话框
+# 3. Rust 后端编译
+$env:PATH = "C:\Users\$env:USERNAME\.cargo\bin;$env:PATH"
+cd src-tauri
+cargo build
 
-### 5.3 辅助功能
-
-- **会话管理** — 多会话 Tab、会话历史、会话重命名
-- **设置面板** — API Key 管理、模型选择、工具权限配置
-- **Token 统计** — 实时显示 token 消耗和预估费用
-- **进度追踪** — 多步骤任务时显示子任务进度条
-- **快捷键** — Ctrl+Enter 发送、Ctrl+L 清屏、Ctrl+K 等
-
----
-
-## 六、分阶段实施计划
-
-### Phase 1: 基础骨架（2-3 周）
-
-- [x] Tauri 2 项目初始化 + React 19 + TypeScript + Tailwind
-- [x] 主窗口框架：三栏布局（侧边栏/对话/右侧面板）
-- [x] 对话 UI 组件：气泡、输入框、流式文本渲染
-- [x] DeepSeek API 基础接入（非流式对话）
-- [x] 设置页面：API Key 配置、模型选择
-- [x] 基础 Session 管理（新建/切换/删除）
-
-### Phase 2: Agent 核心（3-4 周）
-
-- [x] Rust Agent Loop 实现（Turn Loop）
-- [x] 流式 SSE 接入 + 实时渲染
-- [x] 思考过程（reasoning_content）解析与显示
-- [x] 工具系统框架：Tool trait + 注册机制
-- [x] 核心工具：read / write / edit / glob / grep
-- [x] 文件系统沙箱（限制操作范围到项目目录）
-- [x] 审批确认对话框（高风险操作）
-- [x] Diff 视图（文件修改前后对比）
-
-### Phase 3: 增强功能（3-4 周）
-
-- [x] Bash 工具 + 终端面板（xterm.js + portable-pty）
-- [x] Bash 安全验证（命令黑名单/白名单）
-- [x] 上下文窗口管理（压缩/截断策略）
-- [x] Monaco Editor 集成（文件编辑）
-- [x] 文件树侧边栏
-- [x] 多会话 Tab 支持
-- [x] 会话历史持久化（SQLite）
-- [x] MCP 协议支持（扩展工具生态）
-
-### Phase 4: 生产化（2-3 周）
-
-- [x] 深色/浅色主题切换
-- [x] 快捷键系统
-- [x] 设置面板完善（代理配置、权限预设等）
-- [x] 日志/调试面板
-- [x] 打包分发（msi/nsis 安装包）
-- [x] 自动更新
-- [x] 性能优化（大文件、长对话）
-
-### Phase 5: 进阶特性（持续迭代）
-
-- [x] 多 Agent 并行（Git Worktree 隔离）
-- [x] 子 Agent 系统（复杂任务分解）
-- [x] Skills 系统（可复用的指令模板）
-- [x] AGENTS.md 项目级规则支持
-- [x] Web 搜索工具
-- [x] 代码索引 + 语义搜索
-- [x] 自定义 MCP 服务器
-- [x] 插件系统
-
----
-
-## 七、关键文件结构
-
-```
-agent-pc/
-├── src-tauri/                    # Rust 后端
-│   ├── src/
-│   │   ├── main.rs              # 入口，Tauri setup
-│   │   ├── agent/
-│   │   │   ├── mod.rs
-│   │   │   ├── loop.rs          # Turn Loop 引擎
-│   │   │   ├── context.rs       # 上下文管理
-│   │   │   └── stream.rs        # SSE 流解析
-│   │   ├── tools/
-│   │   │   ├── mod.rs
-│   │   │   ├── registry.rs      # 工具注册中心
-│   │   │   ├── read.rs
-│   │   │   ├── write.rs
-│   │   │   ├── edit.rs
-│   │   │   ├── bash.rs          # + 安全验证器
-│   │   │   ├── glob.rs
-│   │   │   └── grep.rs
-│   │   ├── sandbox/
-│   │   │   ├── mod.rs
-│   │   │   └── fs.rs            # 文件系统沙箱
-│   │   ├── session/
-│   │   │   ├── mod.rs
-│   │   │   └── store.rs         # SQLite 会话存储
-│   │   ├── mcp/
-│   │   │   ├── mod.rs
-│   │   │   └── client.rs        # MCP 客户端
-│   │   └── commands.rs          # Tauri IPC 命令
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── src/                          # React 前端
-│   ├── App.tsx                  # 根组件
-│   ├── main.tsx                 # 入口
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Sidebar.tsx
-│   │   │   ├── MainPanel.tsx
-│   │   │   ├── RightPanel.tsx
-│   │   │   └── StatusBar.tsx
-│   │   ├── chat/
-│   │   │   ├── ChatView.tsx
-│   │   │   ├── MessageBubble.tsx
-│   │   │   ├── StreamingText.tsx
-│   │   │   ├── ThinkingBlock.tsx
-│   │   │   └── ToolCallCard.tsx
-│   │   ├── editor/
-│   │   │   ├── FileTree.tsx
-│   │   │   ├── MonacoEditor.tsx
-│   │   │   └── DiffView.tsx
-│   │   ├── terminal/
-│   │   │   └── TerminalPanel.tsx
-│   │   └── settings/
-│   │       ├── SettingsDialog.tsx
-│   │       └── ApiKeyInput.tsx
-│   ├── stores/
-│   │   ├── chatStore.ts
-│   │   ├── sessionStore.ts
-│   │   ├── settingsStore.ts
-│   │   └── fileStore.ts
-│   ├── hooks/
-│   │   ├── useAgentStream.ts
-│   │   └── useDeepSeek.ts
-│   └── lib/
-│       ├── api.ts               # DeepSeek API 客户端
-│       └── types.ts             # 类型定义
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-└── tailwind.config.ts
+# 4. Tauri 完整构建（可选）
+cd ..
+npm run tauri build
 ```
 
 ---
 
-## 八、参考项目
+## 十一、Git 工作流
 
-### 核心参考
+```powershell
+# 开发 → 提交（不要推送）
+git add -A
+git commit -m "description of changes"
+
+# 仅在用户明确要求时推送
+git push
+```
+
+---
+
+## 十二、参考资源
+
 | 项目 | 借鉴点 |
 |------|--------|
-| **Claude Code** | Turn Loop 设计、工具系统、权限模型、上下文压缩策略 |
-| **OpenAI Codex** | App Server 架构（JSON-RPC）、Thread/Turn/Item 模型、多 Agent 编排 |
-| **DeepSeek TUI** (Rust) | 子 Agent 系统、LSP 集成、前缀缓存优化 |
-| **Zagens** (Tauri + Rust) | 长任务支持、Completion Gate、Checkpoint UI |
-| **Devo** (Rust) | 多模型支持、MCP 集成、权限工具执行 |
-
-### UI 参考
-| 项目 | 借鉴点 |
-|------|--------|
-| **Cursor** | 三栏布局、Diff 确认流程 |
-| **Windsurf** | 对话 + 代码编辑一体化 |
-| **VSCode** | 文件树、终端面板、Monaco Editor |
-
----
-
-## 九、关键挑战与对策
-
-| 挑战 | 对策 |
-|------|------|
-| **DeepSeek 工具调用格式特殊** | 实现 DSML 解析器，处理跨 chunk 边界的 XML 标签拼接 |
-| **SSE 流式解析健壮性** | 状态机解析器 + 异常恢复 + 重试机制 |
-| **大文件编辑** | 分块读取 + 差异比较（diff），避免全文件传输 |
-| **Bash 安全** | 命令解析 AST → 验证器链（黑名单/白名单/敏感参数），全部在 Rust 侧完成 |
-| **上下文超限** | 滑动窗口 + LLM 压缩 + 熔断重试上限 |
-| **Windows 兼容性** | Tauri 原生支持 Windows，Bash 工具适配 PowerShell + cmd + WSL |
-| **启动速度** | Rust 编译优化 + 懒加载模块 + 并行初始化 |
-
----
-
-## 十、MVP 验收标准
-
-- [ ] 用户可以在桌面应用中输入自然语言指令
-- [ ] AI 响应实时流式渲染，思考过程可见
-- [ ] 可以读取、编辑、创建项目文件
-- [ ] 可以执行 Shell 命令并在终端面板查看输出
-- [ ] 文件修改时显示 Diff 对比，用户可以确认/拒绝
-- [ ] 高风险操作有审批弹窗
-- [ ] API Key 和模型可在设置中配置
-- [ ] 会话可保存、恢复
-- [ ] 打包为 Windows 安装程序
-
----
-
-> **下一步：** 如果你同意这个规划方向，我们可以直接进入 Phase 1 的开发——从初始化 Tauri 2 项目和搭建基础 UI 骨架开始。
+| Claude Code | Turn Loop、工具系统、权限模型、上下文压缩 |
+| OpenAI Codex | App Server 架构、三栏 UI、Thread/Turn 模型 |
+| DeepSeek TUI (Rust) | 子 Agent、前缀缓存优化 |
+| Cursor | 三栏布局、Diff 确认 |
