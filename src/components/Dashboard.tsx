@@ -2,6 +2,7 @@ import { useUiStore } from "../stores/uiStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useFileStore } from "../stores/fileStore";
 import { MonacoEditor } from "./MonacoEditor";
+import { TerminalPanel } from "./TerminalPanel";
 
 /* ───────── 各仪表盘小组件 ───────── */
 
@@ -184,6 +185,12 @@ export function Dashboard() {
               >
                 ✏️
               </button>
+              <button
+                className={`panel-tab ${rightTab === "terminal" ? "panel-tab-active" : ""}`}
+                onClick={() => setRightTab("terminal")}
+              >
+                💻
+              </button>
             </div>
             <button className="panel-collapse-btn" onClick={toggle} title="折叠面板">
               ▶
@@ -199,6 +206,8 @@ export function Dashboard() {
               <GitStatus />
               <DiffOverview />
             </div>
+          ) : rightTab === "terminal" ? (
+            <TerminalPanel />
           ) : (
             <div className="editor-container">
               {openFile ? (

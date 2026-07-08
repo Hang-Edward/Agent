@@ -3,10 +3,12 @@ mod deepseek;
 mod sandbox;
 mod session;
 mod settings;
+mod terminal;
 mod tools;
 
 use settings::Settings;
 use tauri::Manager;
+use terminal::TerminalSession;
 
 /// 获取设置
 #[tauri::command]
@@ -96,6 +98,24 @@ fn list_directory(app: tauri::AppHandle, path: String) -> Result<Vec<serde_json:
     Ok(entries)
 }
 
+/// 启动终端
+#[tauri::command]
+fn terminal_start(state: tauri::State<'_, TerminalSession>, app: tauri::AppHandle) -> Result<(), String> {
+    state.start(&app)
+}
+
+/// 写入终端输入
+#[tauri::command]
+fn terminal_write(state: tauri::State<'_, TerminalSession>, input: String) -> Result<(), String> {
+    state.write(&input)
+}
+
+/// 停止终端
+#[tauri::command]
+fn terminal_stop(state: tauri::State<'_, TerminalSession>) -> Result<(), String> {
+    state.stop()
+}
+
 /// 读取文件内容（供编辑器使用）
 #[tauri::command]
 fn read_file_content(path: String) -> Result<String, String> {
@@ -130,7 +150,11 @@ pub fn run() {
             start_agent_turn,
             list_directory,
             read_file_content,
+            terminal_start,
+            terminal_write,
+            terminal_stop,
         ])
+        .manage(TerminalSession::new())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("无法获取应用数据目录");
             std::fs::create_dir_all(&data_dir).ok();
