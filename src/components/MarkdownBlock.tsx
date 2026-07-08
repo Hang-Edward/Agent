@@ -90,7 +90,7 @@ export function MarkdownBlock({ content }: Props) {
   return (
     <ReactMarkdown
       components={components}
-      remarkPlugins={[remarkObsidianCallout, remarkGfm, remarkMath]}
+      remarkPlugins={[remarkObsidianCallout, remarkMath, remarkGfm]}
       rehypePlugins={[rehypeKatex, rehypeHighlight]}
     >
       {content}
