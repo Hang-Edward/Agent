@@ -460,253 +460,162 @@ commit: Implement rich Markdown rendering with LaTeX and Obsidian Callout
 
 ---
 
-## 八、当前文件结构（Phase 1 完成后）
+## 八、当前文件结构（Phase 5 完成）
 
 ```
 D:\VScode Projects\Agent/
 ├── .gitignore
-├── CLAUDE.md                       # 项目规则（含 Git 提交/推送规则）
-├── DESKTOP_AGENT_PLAN.md           # 本文档
+├── CLAUDE.md
+├── DESKTOP_AGENT_PLAN.md
 ├── package.json
-├── package-lock.json
 ├── index.html
-├── vite.config.ts
+├── vite.config.ts                  # 分包 (monaco/markdown/terminal/vendor)
 ├── tsconfig.json / .app.json / .node.json
-├── dist/                           # 前端构建产物
+├── start.bat / start.ps1           # 快速启动
 ├── src/
-│   ├── main.tsx                    # 入口（导入 KaTeX + highlight.js CSS）
-│   ├── App.tsx                     # 根组件
-│   ├── App.css                     # 全局样式（One Dark Pro）
-│   ├── vite-env.d.ts
+│   ├── main.tsx                    # 入口 (KaTeX + highlight.js CSS)
+│   ├── App.tsx
+│   ├── App.css                     # One Dark Pro 主题
 │   ├── stores/
-│   │   ├── settingsStore.ts        # 设置状态管理
-│   │   ├── sessionStore.ts         # 会话 + Token 统计 + 发送消息
-│   │   └── uiStore.ts              # 面板折叠状态
+│   │   ├── settingsStore.ts        # 设置 (API Key/模型/权限)
+│   │   ├── sessionStore.ts         # 会话 + 流式事件 + Token + 上下文估算
+│   │   ├── uiStore.ts              # 面板折叠状态
+│   │   ├── fileStore.ts            # 打开的文件 + 右侧 Tab
+│   │   └── skillStore.ts           # Skills CRUD
 │   └── components/
-│       ├── SessionList.tsx         # 左栏：会话列表
-│       ├── ChatArea.tsx            # 中栏：对话 + 输入
-│       ├── Dashboard.tsx           # 右栏：仪表盘（5 widgets）
-│       ├── SettingsDialog.tsx      # 设置对话框
+│       ├── SessionList.tsx         # 左栏：💬会话/📁文件/📋Skills 三 Tab
+│       ├── ChatArea.tsx            # 中栏：流式对话 + 工具调用展示
+│       ├── Dashboard.tsx           # 右栏：📊仪表盘/✏️编辑器/💻终端 三 Tab
+│       ├── SettingsDialog.tsx      # 设置弹窗
 │       ├── StatusBar.tsx           # 底部状态栏
-│       ├── MarkdownBlock.tsx       # Markdown 渲染（含 Callout 插件）
-│       └── ObsidianCallout.tsx     # Obsidian Callout 组件
+│       ├── MarkdownBlock.tsx       # Markdown + LaTeX + Obsidian Callout
+│       ├── ObsidianCallout.tsx
+│       ├── FileTree.tsx            # 📁 文件树（懒加载）
+│       ├── SkillManager.tsx        # 📋 Skill 管理器（创建/查看/应用）
+│       ├── TerminalPanel.tsx       # 💻 xterm.js 终端
+│       ├── MonacoEditor.tsx        # ✏️ Monaco Editor
+│       ├── ToolCallCard.tsx        # 工具调用卡片
+│       └── ApprovalDialog.tsx      # 审批弹窗
 ├── src-tauri/
-│   ├── Cargo.toml
-│   ├── build.rs
-│   ├── tauri.conf.json
-│   ├── capabilities/default.json
-│   ├── icons/
-│   │   ├── 32x32.png / 128x128.png / 128x128@2x.png
-│   │   └── icon.ico
-│   ├── gen/schemas/                # Tauri 自动生成
+│   ├── Cargo.toml                  # 依赖：tauri, keyring, reqwest, glob, regex...
+│   ├── tauri.conf.json             # NSIS/MSI + 自动更新
 │   └── src/
 │       ├── main.rs
-│       ├── lib.rs                  # Tauri 配置 + 所有命令注册
-│       ├── settings.rs             # 设置 CRUD + keyring 加密
-│       ├── session.rs              # 会话 CRUD + JSON 持久化
-│       └── deepseek.rs             # DeepSeek API 客户端
-└── public/
+│       ├── lib.rs                  # Tauri App + 全部 ~25 个命令
+│       ├── settings.rs             # 设置 + keyring 加密
+│       ├── session.rs              # 会话 CRUD
+│       ├── deepseek.rs             # DeepSeek API (流式 + 非流式)
+│       ├── sandbox.rs              # 文件沙箱
+│       ├── terminal.rs             # 终端进程管理
+│       ├── skills.rs               # Skills CRUD
+│       ├── mcp.rs                  # MCP 客户端 (JSON-RPC)
+│       ├── agent/
+│       │   ├── types.rs            # Tauri Event 载荷
+│       │   ├── context.rs          # System Prompt (含工具定义)
+│       │   ├── tool_parser.rs      # XML 工具调用解析
+│       │   └── loop.rs             # Turn Loop (多轮迭代)
+│       └── tools/
+│           ├── mod.rs              # Tool trait + 注册中心 (8 工具)
+│           ├── bash_safety.rs      # 命令安全验证
+│           ├── bash.rs             # PowerShell 执行
+│           ├── read.rs / write.rs / edit.rs
+│           ├── glob.rs / grep.rs
+│           └── web_search.rs       # 网络搜索 + 网页抓取
 ```
 
 ---
 
-## 九、Phase 2：Agent 核心（进行中）
+## 九、Phase 2→5 完成内容
 
-### 9.1 Turn Loop 引擎（已完成）
+### Phase 2: Agent 核心 (✅ 全部完成)
 
-#### 9.1.1 架构
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| Turn Loop 引擎 | ✅ | 多轮迭代 (≤15轮)，工具调用自动循环 |
+| 流式 SSE | ✅ | token/reasoning/done 事件推送 |
+| 思考过程展示 | ✅ | 紫色折叠块 |
+| 工具系统框架 | ✅ | Tool trait + ToolRegistry |
+| 核心工具 | ✅ | read, write, edit, glob, grep |
+| 文件沙箱 | ✅ | 路径校验防 ../ 逃逸 |
+| 审批弹窗 | ✅ | ApprovalDialog 组件 |
+| Diff 视图 | ✅ | 组件已创建（待接真实数据） |
 
-```
-Frontend                    Rust Backend                    DeepSeek API
-   │                            │                              │
-   │── invoke("start_agent_turn")                             │
-   │                            │── POST /chat/completions ────│
-   │                            │   (stream:true)              │
-   │                            │◀──── SSE stream ────────────│
-   │◀── Tauri Event: token ─────│                              │
-   │◀── Tauri Event: reasoning ─│                              │
-   │◀── Tauri Event: done ──────│                              │
-   │── invoke returns ──────────│                              │
-```
+### Phase 3: 增强功能 (✅ 全部完成)
 
-#### 9.1.2 文件结构
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| Bash 工具 | ✅ | 6 级安全验证，拦截 rm/format/shutdown 等 |
+| 终端面板 | ✅ | xterm.js + PowerShell 进程管理 |
+| 上下文 1M | ✅ | Token 估算 + 仪表盘进度条 |
+| Monaco Editor | ✅ | VS Code 内核，语法高亮 |
+| 文件树 | ✅ | 懒加载目录展开 |
+| MCP 协议 | ✅ | JSON-RPC 客户端，动态工具发现 |
 
-```
-src-tauri/src/agent/
-├── mod.rs        # 模块导出（不含 Tauri 命令，放在 lib.rs）
-├── types.rs      # Tauri Event 载荷类型 + 事件名常量
-├── context.rs    # System Prompt 构建 + 消息列表组装
-└── loop.rs       # Turn Loop 引擎（run_turn）
-```
+### Phase 4: 生产化 (✅ 全部完成)
 
-#### 9.1.3 Tauri Event 协议
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| NSIS 安装包 | ✅ | Agent PC_0.1.0_x64-setup.exe |
+| MSI 安装包 | ✅ | Agent PC_0.1.0_x64_en-US.msi |
+| 自动更新 | ✅ | tauri-plugin-updater 配置 |
+| 代码分包 | ✅ | monaco/markdown/terminal/vendor 分包 |
 
-| 事件名 | 载荷 | 触发时机 |
-|--------|------|---------|
-| `agent:token` | `{ token: String }` | 每收到一个 token 增量 |
-| `agent:reasoning` | `{ reasoning: String }` | 收到 reasoning_content（思考过程） |
-| `agent:done` | `{ content, input_tokens, output_tokens }` | 流结束 |
+### Phase 5: 进阶特性 (进行中)
 
-#### 9.1.4 关键代码
-
-**deepseek.rs 流式 SSE 解析**：
-```rust
-// reqwest 流式读取 → 按行分割 SSE → JSON 解析
-// 每一行 "data: {...}" 中的 delta.content → on_token()
-// delta.reasoning_content → on_reasoning()
-// 最后一条 [DONE] 或带 usage 的 chunk → on_done()
-```
-
-**agent/context.rs System Prompt**：
-```rust
-pub fn build_system_prompt() -> String {
-    format!(r#"你是 Agent PC，一个桌面 AI 编码助手。
-- 使用工具完成文件读写、代码搜索等操作
-- 中文回复，Markdown 格式
-- 可用 LaTeX $$...$$ 和 Obsidian Callout >[!note]
-当前时间：{now}"#)
-}
-```
-
-**agent/loop.rs run_turn 流程**：
-```
-1. load_settings()          → 获取 API Key + Model
-2. get_session()            → 加载会话历史
-3. 保存用户消息             → push Message::User
-4. build_messages()         → system + history + user_input
-5. chat_completion_stream() → 流式调用 API
-   ├── on_token → emit("agent:token")
-   ├── on_reasoning → emit("agent:reasoning")
-   └── on_done → (token 统计)
-6. 保存 AI 回复             → push Message::Assistant
-7. save_session()           → 持久化到 JSON
-8. rename_session()         → 默认名称更新为消息摘要
-9. emit("agent:done")       → 通知前端完成
-```
-
-#### 9.1.5 前端流式渲染
-
-**sessionStore.ts**：
-```typescript
-sendMessage(content) {
-  1. 本地插入用户消息（即时显示）
-  2. listen("agent:token")     → 追加到 streamContent
-  3. listen("agent:reasoning") → 追加到 streamReasoning
-  4. invoke("start_agent_turn") → 启动后台 Turn
-  5. 完成后 → 重新加载会话 + 更新 Token 统计
-}
-```
-
-**ChatArea.tsx 流式气泡**：
-```
-AI 消息气泡:
-  ├── <details> 思考过程 (collapsible)
-  │   └── <pre> streamReasoning
-  └── MarkdownBlock(streamContent)
-      或 "思考中..." (闪烁动画)
-```
-
-#### 9.1.6 提交记录
-
-```
-commit: feat: implement Turn Loop engine with streaming SSE
-- Rust agent module: types, context, loop
-- deepseek streaming SSE parsing
-- Tauri events for real-time token push
-- Frontend event listeners + streaming render
-- Collapsible reasoning block
-```
-
-### 9.2 思考过程展示（已完成，合并在 Turn Loop 中）
-
-- reasoning_content 通过 `agent:reasoning` 事件推送
-- 前端以 `<details>` 折叠块展示，紫色主题色
-
-### 9.3 工具系统（待实现）
-
-**Tool trait**：
-```rust
-pub trait Tool {
-    fn name(&self) -> &str;
-    fn description(&self) -> &str;
-    fn parameters(&self) -> serde_json::Value;  // JSON Schema
-    fn is_read_only(&self) -> bool;
-    fn execute(&self, args: serde_json::Value) -> Result<String, String>;
-}
-```
-
-**MVP 工具**：
-| 工具 | 功能 | 只读 | 需审批 |
-|------|------|------|--------|
-| read | 读取文件 | ✅ | ❌ |
-| write | 写入/覆盖 | ❌ | ✅ |
-| edit | 精确替换 | ❌ | ✅ |
-| glob | 文件搜索 | ✅ | ❌ |
-| grep | 内容搜索 | ✅ | ❌ |
-| bash | 命令执行 | 视情况 | 视情况 |
-| finish | 结束任务 | — | — |
-
-### 9.4 文件沙箱
-
-- 限制文件操作到用户指定的工作目录
-- 路径规范化，防止 `../` 逃逸
-- Rust 侧路径校验
-
-### 9.5 审批流程
-
-- 只读工具 → 自动执行
-- 写入工具 → 弹窗确认（可记忆为"本次会话允许"）
-- Bash 命令 → 弹窗显示命令内容 + 确认
-
-### 9.6 Diff 视图
-
-- 文件修改后显示代码变更对比
-- 绿色 = 新增，红色 = 删除
-- 用户可以逐块接受/拒绝
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| Web 搜索 | ✅ | DuckDuckGo API (免费) |
+| 网页抓取 | ✅ | HTML → 文本提取 |
+| Skills 系统 | ✅ | CRUD + 应用到当前对话 |
+| 多 Agent | ❌ | |
+| 子 Agent | ❌ | |
+| AGENTS.md | ❌ | |
+| 代码索引 | ❌ | |
 
 ---
 
-## 十、完整构建验证
+## 十、Tauri Event 协议
 
-每次修改后执行：
+| 事件名 | 方向 | 说明 |
+|--------|------|------|
+| `agent:token` | Rust → Frontend | 流式 token |
+| `agent:reasoning` | Rust → Frontend | 思考过程 |
+| `agent:tool_result` | Rust → Frontend | 工具执行结果 |
+| `agent:done` | Rust → Frontend | Turn 完成 |
+| `terminal:output` | Rust → Frontend | 终端输出 |
+
+---
+
+## 十一、工具清单
+
+| 工具 | 只读 | 安全级别 | 用途 |
+|------|------|---------|------|
+| read | ✅ | 自动 | 读文件/目录 |
+| write | ❌ | 需审批 | 写入/覆盖 |
+| edit | ❌ | 需审批 | 文本替换 |
+| glob | ✅ | 自动 | 文件名搜索 |
+| grep | ✅ | 自动 | 内容搜索 |
+| bash | 视情况 | 安全验证 | 命令执行 |
+| web_search | ✅ | 自动 | 网络搜索 |
+| web_fetch | ✅ | 自动 | 网页抓取 |
+
+---
+
+## 十二、构建验证
 
 ```powershell
-# 1. TypeScript 类型检查
-npx tsc --noEmit
-
-# 2. Vite 前端构建
-npx vite build
-
-# 3. Rust 后端编译
-$env:PATH = "C:\Users\$env:USERNAME\.cargo\bin;$env:PATH"
-cd src-tauri
-cargo build
-
-# 4. Tauri 完整构建（可选）
-cd ..
-npm run tauri build
+npx tsc --noEmit        # TypeScript 检查
+npx vite build          # 前端构建
+cargo build             # Rust 构建
+npx tauri build         # 完整生产构建
 ```
 
 ---
 
-## 十一、Git 工作流
+## 十三、Git 工作流
 
 ```powershell
-# 开发 → 提交（不要推送）
 git add -A
-git commit -m "description of changes"
-
-# 仅在用户明确要求时推送
-git push
+git commit -m "描述"
+# 不推送，等待用户指令
 ```
-
----
-
-## 十二、参考资源
-
-| 项目 | 借鉴点 |
-|------|--------|
-| Claude Code | Turn Loop、工具系统、权限模型、上下文压缩 |
-| OpenAI Codex | App Server 架构、三栏 UI、Thread/Turn 模型 |
-| DeepSeek TUI (Rust) | 子 Agent、前缀缓存优化 |
-| Cursor | 三栏布局、Diff 确认 |
