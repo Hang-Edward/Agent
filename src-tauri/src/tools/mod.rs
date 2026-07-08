@@ -1,10 +1,13 @@
 pub mod bash;
 pub mod bash_safety;
+pub mod code_search;
 pub mod edit;
 pub mod glob;
 pub mod grep;
 pub mod read;
+pub mod sub_agent;
 pub mod web_search;
+pub mod worktree;
 pub mod write;
 
 use serde::Serialize;
@@ -87,6 +90,8 @@ impl ToolRegistry {
         reg.register(Box::new(bash::BashTool));
         reg.register(Box::new(web_search::WebSearchTool));
         reg.register(Box::new(web_search::WebFetchTool));
+        reg.register(Box::new(code_search::CodeSearchTool));
+        reg.register(Box::new(worktree::WorktreeTool));
         reg
     }
 }

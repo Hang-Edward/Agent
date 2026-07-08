@@ -1,6 +1,8 @@
 mod agent;
+mod code_index;
 mod deepseek;
 mod mcp;
+mod mcp_server;
 mod sandbox;
 mod session;
 mod settings;

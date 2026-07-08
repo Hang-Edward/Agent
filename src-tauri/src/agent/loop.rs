@@ -19,7 +19,6 @@ pub async fn run_turn(
     let handle = app.clone();
     let settings = settings::load_settings(app);
     let registry = ToolRegistry::default();
-    let system_prompt = crate::agent::context::build_system_prompt(&registry);
 
     // 加载会话
     let mut sess = session::get_session(app, session_id).ok_or("会话不存在")?;
@@ -33,13 +32,16 @@ pub async fn run_turn(
         created_at: now(),
     });
 
-    // 工作目录沙箱：优先使用设置中的工作目录，否则用当前项目目录
+    // 工作目录沙箱
     let sandbox_dir = if !settings.working_dir.is_empty() {
         std::path::PathBuf::from(&settings.working_dir)
     } else {
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
     };
     let sandbox = Sandbox::new(sandbox_dir);
+
+    // 构建系统提示（在 sandbox 之后）
+    let system_prompt = crate::agent::context::build_system_prompt(&registry, sandbox.allowed_dir());
 
     // 累加最终输出
     let mut full_output = String::new();
