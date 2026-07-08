@@ -537,6 +537,22 @@ html, body, #root {
   to { transform: rotate(360deg); }
 }
 
+/* 进度条（上下文使用量） */
+.progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
 /* Diff 条 */
 .diff-bar {
   display: flex;

@@ -62,6 +62,34 @@ export interface ToolCallDisplay {
   status: "running" | "success" | "error";
 }
 
+/* ───── 上下文估算 ───── */
+
+/** 估算文本的 token 数（粗略：中文 1.5 字/token，英文 4 字符/token） */
+export function estimateTokens(text: string): number {
+  let chineseChars = 0;
+  let otherChars = 0;
+  for (const ch of text) {
+    if (/[一-鿿㐀-䶿]/.test(ch)) {
+      chineseChars++;
+    } else {
+      otherChars++;
+    }
+  }
+  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+}
+
+/** 计算会话的总预估 token 数（含系统提示估算） */
+export function estimateSessionTokens(messages: { role: string; content: string }[]): number {
+  // 系统提示约 300 token
+  let total = 300;
+  for (const msg of messages) {
+    total += estimateTokens(msg.content);
+  }
+  return total;
+}
+
+export const MAX_CONTEXT_TOKENS = 1_000_000; // DeepSeek V4 1M 上下文
+
 /* ───── 价格计算 ───── */
 
 const PRICES: Record<string, { input: number; output: number }> = {
@@ -88,6 +116,8 @@ interface SessionStore {
   streamReasoning: string;
   /** 本轮工具调用（用于 UI 展示） */
   toolCalls: ToolCallDisplay[];
+  /** 当前会话预估上下文 Token */
+  contextTokens: number;
   tokenStats: TokenStats;
 
   loadSessions: () => Promise<void>;
@@ -107,6 +137,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   streamContent: "",
   streamReasoning: "",
   toolCalls: [],
+  contextTokens: 0,
   tokenStats: { total_input: 0, total_output: 0, total_cost: 0 },
 
   loadSessions: async () => {
@@ -142,7 +173,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
     try {
       const session = await invoke<Session | null>("get_session", { id });
-      set({ currentSession: session, loading: false });
+      set({
+        currentSession: session,
+        loading: false,
+        contextTokens: session ? estimateSessionTokens(session.messages) : 0,
+      });
     } catch (e) {
       console.error("加载会话失败:", e);
       set({ loading: false });
@@ -260,6 +295,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           streamContent: "",
           streamReasoning: "",
           tokenStats: newStats,
+          contextTokens: estimateSessionTokens(updated.messages),
         });
 
         const sessions = await invoke<SessionSummary[]>("list_sessions");

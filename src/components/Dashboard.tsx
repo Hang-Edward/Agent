@@ -79,6 +79,32 @@ function TokenUsage() {
   );
 }
 
+/** 上下文使用量面板 */
+function ContextUsage() {
+  const ctxTokens = useSessionStore((s) => s.contextTokens);
+  const pct = Math.min(100, (ctxTokens / 1_000_000) * 100);
+  const barWidth = `${pct}%`;
+
+  return (
+    <div className="widget">
+      <div className="widget-title">📦 上下文 (1M)</div>
+      <div className="widget-body">
+        <div className="progress-bar-bg">
+          <div className="progress-bar-fill" style={{ width: barWidth }} />
+        </div>
+        <div className="metric-row">
+          <span className="metric-label">已用</span>
+          <span className="metric-value">{ctxTokens.toLocaleString()}</span>
+        </div>
+        <div className="metric-row">
+          <span className="metric-label">剩余</span>
+          <span className="metric-value">{(1_000_000 - ctxTokens).toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** 缓存命中率面板（DeepSeek API 暂未暴露缓存数据，显示占位） */
 function CacheHitRate() {
   return (
@@ -163,6 +189,7 @@ export function Dashboard() {
           <div className="dashboard-scroll">
             <TaskProgress />
             <TokenUsage />
+            <ContextUsage />
             <CacheHitRate />
             <GitStatus />
             <DiffOverview />

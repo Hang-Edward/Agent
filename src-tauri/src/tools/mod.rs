@@ -1,3 +1,5 @@
+pub mod bash;
+pub mod bash_safety;
 pub mod edit;
 pub mod glob;
 pub mod grep;
@@ -81,6 +83,7 @@ impl ToolRegistry {
         reg.register(Box::new(edit::EditTool));
         reg.register(Box::new(glob::GlobTool));
         reg.register(Box::new(grep::GrepTool));
+        reg.register(Box::new(bash::BashTool));
         reg
     }
 }
